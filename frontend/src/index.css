@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* --- Soft fade-in animation for cards/sections --- */
+
+@keyframes fadeInSoft {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-soft {
+  animation: fadeInSoft 0.35s ease-out;
+}
+
+/* Slightly slower + delayed, good for image hero */
+.fade-in-soft-delayed {
+  animation: fadeInSoft 0.45s ease-out 0.08s both;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.18s ease-out;
+}
