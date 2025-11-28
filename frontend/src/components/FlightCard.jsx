@@ -16,14 +16,14 @@ const FlightCard = ({ flight, selectedCurrency }) => {
       {/* Airline + route */}
       <header className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
-            <Plane className="text-amber-600" size={20} />
+          <div className="h-10 w-10 rounded-full bg-sky-100 flex items-center justify-center">
+            <Plane className="text-sky-600" size={20} />
           </div>
           <div>
             <h4 className="font-semibold text-stone-800">
               {flight.airline || "Flight option"}
             </h4>
-            <p className="text-xs text-stone-500">
+            <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
               {flight.flightNumber && (
                 <>Flight {flight.flightNumber}</>
               )}
@@ -36,7 +36,7 @@ const FlightCard = ({ flight, selectedCurrency }) => {
             <p className="text-xs uppercase tracking-wide text-stone-400">
               From
             </p>
-            <p className="text-lg font-bold text-amber-700">
+            <p className="text-lg font-bold text-orange-700">
               {currencyFormatter("en-US", selectedCurrency, price)}
             </p>
             {totalPrice != null && (
@@ -62,12 +62,12 @@ const FlightCard = ({ flight, selectedCurrency }) => {
             </span>
           </div>
           {flight.duration && (
-            <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium">
+            <span className="px-2 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-medium">
               {flight.duration}
             </span>
           )}
           {typeof flight.stops === "number" && (
-            <span className="px-2 py-1 rounded-full bg-sky-50 text-sky-700 text-xs font-medium">
+            <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium">
               {flight.stops === 0
                 ? "Direct"
                 : `${flight.stops} stop${flight.stops > 1 ? "s" : ""}`}

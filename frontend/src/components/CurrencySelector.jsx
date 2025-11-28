@@ -43,10 +43,10 @@ const CurrencySelector = ({ selectedCurrency, onCurrencyChange }) => {
     
     return (
     <section className="mb-4 flex justify-end">
-      <div className="inline-flex items-center gap-3 bg-white shadow-sm rounded-full px-3 py-2 border border-amber-100">
+      <div className="inline-flex items-center gap-3 bg-white shadow-sm rounded-full px-3 py-2 border border-orange-100">
         {/* Label + icon */}
         <div className="flex items-center gap-1 text-xs sm:text-sm text-stone-600 pl-1">
-          <Globe2 size={16} className="text-amber-600" />
+          <Globe2 size={16} className="text-orange-500" />
           <span className="font-medium text-stone-800">Currency</span>
         </div>
 
@@ -59,8 +59,8 @@ const CurrencySelector = ({ selectedCurrency, onCurrencyChange }) => {
             onCurrencyChange(e.target.value)
           }
           className="bg-stone-100 text-xs sm:text-sm rounded-full px-3 py-1 border border-stone-200
-                     focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500
-                     hover:bg-white transition min-w-[8rem]"
+           focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500
+           hover:bg-white transition min-w-[8rem]"
         >
           {currencies.map(([code, name]) => (
             <option key={code} value={code}>

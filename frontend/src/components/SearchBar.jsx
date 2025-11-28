@@ -39,19 +39,20 @@ const SearchBar = ({
 
   // Render the SearchBar component
     return (
-        <section className="mt-4 mb-6 bg-gradient-to-r from-amber-100 via-amber-50 to-sky-100 rounded-3xl p-[1px] shadow-lg">
-            <div className="bg-white rounded-[1.4rem] p-4 sm:p-5 md:p-6">
+        <section className="mt-4 mb-6 bg-gradient-to-r from-sky-100 via-orange-50 to-emerald-50 rounded-3xl p-[1px] shadow-lg">
+            <div className="bg-white/95 rounded-[1.4rem] p-4 sm:p-5 md:p-6">
                 {/* Header inside card */}
                 <div className="flex items-center justify-between mb-4">
                     <div>
-                        <h2 className="text-xl font-semibold text-stone-800">
+                        <h2 className="text-lg md:text-xl font-semibold text-stone-800">
                         Plan your escape ✈️
                         </h2>
-                        <p className="text-sm text-stone-500">
+                        <p className="text-xs md:text-sm text-stone-500">
                         Choose your route, dates and who&apos;s coming along.
                         </p>
                     </div>
                 </div>
+
 
                 <form
                 onSubmit={handleGetGuide}
@@ -67,7 +68,7 @@ const SearchBar = ({
                     value={origin}
                     onChange={(e) => setOrigin(e.target.value)}
                     placeholder="Where are you flying from?"
-                    className="w-full p-3 rounded-lg border border-stone-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition text-base"
+                    className="w-full p-3 rounded-lg border border-stone-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition text-base hover:border-amber-400"
                     />
                 </div>
 
@@ -81,7 +82,7 @@ const SearchBar = ({
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
                     placeholder="Where do you want to go?"
-                    className="w-full p-3 rounded-lg border border-stone-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition text-base"
+                    className="w-full p-3 rounded-lg border border-stone-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition text-base hover:border-amber-400"
                     />
                 </div>
 
@@ -94,7 +95,7 @@ const SearchBar = ({
                     type="date"
                     value={departureDate}
                     onChange={(e) => setDepartureDate(e.target.value)}
-                    className="w-full p-3 rounded-lg border border-stone-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition text-base"
+                    className="w-full p-3 rounded-lg border border-stone-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition text-base hover:border-amber-400"
                     />
                 </div>
 
@@ -107,7 +108,7 @@ const SearchBar = ({
                     type="date"
                     value={returnDate}
                     onChange={(e) => setReturnDate(e.target.value)}
-                    className="w-full p-3 rounded-lg border border-stone-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition text-base"
+                    className="w-full p-3 rounded-lg border border-stone-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition text-base hover:border-amber-400"
                     />
                 </div>
 
@@ -140,11 +141,11 @@ const SearchBar = ({
                     <button
                     type="submit"
                     disabled={loading}
-                    className="w-full md:w-auto bg-amber-600 text-white font-semibold py-3 px-6 
-                                rounded-lg shadow-md hover:bg-amber-700 transition 
-                                disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full md:w-auto bg-orange-500 text-white font-semibold py-3 px-6 
+                    rounded-lg shadow-md hover:bg-orange-600 transition 
+                    disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                    {loading ? "Exploring options..." : "Find destination"}
+                        {loading ? "Exploring options..." : "Find destination"}
                     </button>
                 </div>
                 </form>

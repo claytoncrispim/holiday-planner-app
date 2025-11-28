@@ -7,9 +7,10 @@ const InfoSectionCard = ({ title, emoji, children }) => {
           {title}
         </h3>
       </header>
-      <p className="text-sm sm:text-base text-stone-700 leading-relaxed whitespace-pre-line">
+      <p className="text-sm sm:text-[15px] text-stone-700 leading-relaxed whitespace-pre-line">
         {children}
       </p>
+
     </section>
   );
 };

@@ -203,21 +203,31 @@ const App = () => {
 
 // --- RENDERING THE APP COMPONENT ---
 return (
-    <div className="min-h-screen bg-amber-50 font-serif p-4 sm:p-6 md:p-8">
-      <div className="container mx-auto max-w-2xl">
+    <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8">
+      <div className="container mx-auto max-w-3xl">
 
         {/* HEADER */}
         <header className="text-center my-6 md:my-8">
-            {/* Debugger to check loading state */}
-            {/* <div className="text-red-600 font-bold">
-                loading state: {loading ? "TRUE" : "FALSE"} 
-            </div> */}
+            <h1 className="text-4xl md:text-5xl font-serif font-bold text-stone-800">
+                Holiday Planner 🏖️
+            </h1>
+            <p className="mt-2 text-sm md:text-base text-stone-600">
+                Your AI guide to the world&apos;s destinations.
+            </p>
 
-          <h1 className="text-4xl md:text-5xl font-bold text-stone-800">
-            Holiday Planner 🏖️
-          </h1>
-          <p className="text-stone-600 mt-2 text-lg">Your AI guide to the world's destinations.</p>
+            {/* Badge */}
+            <div className="flex justify-center">
+                <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white/80 px-3 py-1 shadow-sm">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-orange-600">
+                    Beta
+                </span>
+                <span className="text-[11px] text-stone-500">
+                    AI-powered holiday planning
+                </span>
+                </div>
+            </div>
         </header>
+
 
         <main>
             {/* CURRENCY SELECTOR */}

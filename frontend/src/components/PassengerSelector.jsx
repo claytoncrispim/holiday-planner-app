@@ -23,12 +23,16 @@ export default function PassengerSelector({ initialPassengers, onApply, onClose 
     };
 
     return (
-        <div className="absolute left-0 top-full mt-2 w-80 bg-white shadow-xl rounded-xl border border-amber-200 p-4 z-50 animate-fadeIn">
+        <div className="absolute left-0 top-full mt-2 w-88 bg-white shadow-xl rounded-xl border border-amber-200 p-4 z-50 animate-fadeIn">
             
             {/* Header */}
-            <div className="flex items-center gap-2 mb-3">
-                <Users className="text-amber-600" size={20} />
+            <div className="flex items-center gap-2 mb-1">
+                <Users className="text-orange-500" size={20} />
                 <h3 className="text-lg font-semibold text-stone-800">Passengers</h3>
+                <p className="mb-3 text-[11px] text-emerald-600 font-medium">
+                    Optimise your group for best value.
+                </p>
+
             </div>
 
             {/* Passenger Rows */}
@@ -37,14 +41,14 @@ export default function PassengerSelector({ initialPassengers, onApply, onClose 
                     <div key={row.key} className="flex items-center justify-between">
                         <div>
                             <p className="font-medium text-stone-800">{row.label}</p>
-                            <p className="text-sm text-stone-500">{row.description}</p>
+                            <p className="text-xs text-stone-500">{row.description}</p>
                         </div>
 
                         <div className="flex items-center gap-2">
                             <button
                                 type="button"
                                 onClick={() => updateCount(row.key, -1)}
-                                className="w-8 h-8 flex items-center justify-center rounded-full border border-amber-300 text-amber-600 hover:bg-amber-100 transition"
+                                className="w-8 h-8 flex items-center justify-center rounded-full border border-orange-300 text-orange-600 hover:bg-orange-50 transition"
                             >
                                 <Minus size={16} />
                             </button>
@@ -56,7 +60,7 @@ export default function PassengerSelector({ initialPassengers, onApply, onClose 
                             <button
                                 type="button"
                                 onClick={() => updateCount(row.key, +1)}
-                                className="w-8 h-8 flex items-center justify-center rounded-full bg-amber-500 text-white hover:bg-amber-600 transition"
+                                className="w-8 h-8 flex items-center justify-center rounded-full bg-orange-500 text-white hover:bg-orange-600 transition"
                             >
                                 <Plus size={16} />
                             </button>
@@ -80,7 +84,7 @@ export default function PassengerSelector({ initialPassengers, onApply, onClose 
                         onClose();
                     }}
                     type="button"
-                    className="px-4 py-2 rounded-lg bg-amber-600 text-white font-semibold shadow hover:bg-amber-700 transition"
+                    className="px-4 py-2 rounded-lg bg-orange-500 text-white font-semibold shadow hover:bg-orange-600 transition"
                 >
                     Apply
                 </button>

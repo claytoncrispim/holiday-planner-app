@@ -19,12 +19,12 @@ const TripSummaryBar = ({
 
   return (
     <section className="mt-4 mb-4 fade-in-soft">
-      <div className="bg-gradient-to-r from-sky-100 via-amber-50 to-amber-100 rounded-2xl px-4 py-3 shadow-sm border border-amber-100 flex flex-wrap items-center gap-3 text-sm">
+      <div className="bg-gradient-to-r from-sky-100 via-orange-50 to-emerald-50 rounded-2xl px-4 py-3 shadow-sm border border-orange-100 flex flex-wrap items-center gap-3 sm:gap-4 md:gap-6 text-sm">
         
         {/* Route */}
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
-            <MapPin className="text-amber-700" size={16} />
+            <MapPin className="text-orange-500" size={16} />
           </div>
           <div className="text-stone-800">
             <p className="font-semibold leading-tight">
@@ -42,7 +42,7 @@ const TripSummaryBar = ({
         {/* Dates */}
         {hasDates && (
           <div className="flex items-center gap-2">
-            <Calendar className="text-amber-700" size={16} />
+            <Calendar className="text-orange-500" size={16} />
             <p className="text-stone-700">
               <span className="font-semibold">
                 {formatDate(departureDate)}
@@ -60,7 +60,7 @@ const TripSummaryBar = ({
 
         {/* Passengers */}
         <div className="flex items-center gap-2">
-          <Users className="text-amber-700" size={16} />
+          <Users className="text-orange-500" size={16} />
           <p className="text-stone-700">
             <span className="font-semibold">{totalPassengers}</span>{" "}
             traveller{totalPassengers !== 1 ? "s" : ""}
@@ -72,7 +72,7 @@ const TripSummaryBar = ({
             <button
             type="button"
             onClick={onChangeTrip}
-            className="ml-auto text-xs font-semibold text-amber-700 hover:text-amber-800 underline"
+            className="ml-auto pl-3 text-xs sm:text-sm font-semibold text-orange-600 hover:text-orange-700 underline"
             >
             Change Trip
             </button>
