@@ -1,5 +1,5 @@
 import { Plane, ArrowRight } from "lucide-react";
-import currencyFormatter from "./currencyFormatter";
+import currencyFormatter from "../tools/currencyFormatter";
 
 const FlightCard = ({ flight, selectedCurrency }) => {
   // Support both older and newer field names from Gemini

@@ -13,14 +13,30 @@ const SearchBar = ({
     returnDate, 
     setReturnDate, 
     passengers, 
-    setPassengers, 
+    setPassengers,
+    budgetLevel,
+    setBudgetLevel,
     handleGetGuide, 
     loading 
 }) => {
     // State to control if the dropdown is open or closed
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-    // This function receives the data from the child component
+    // Budget options for the dropdown
+    const BUDGET_OPTIONS = [
+        { value: "low", label: "Budget" },
+        { value: "medium", label: "Balanced" },
+        { value: "high", label: "Comfort" },
+    ];
+
+    // Handler for budget selection
+    const handleBudgetClick = (value) => {
+        if (typeof setBudgetLevel === 'function') {
+            setBudgetLevel(value);
+        }
+    };
+
+    // Handler for applying passenger selections from the dropdown
     const handleApplyPassengers = (newPassengers) => {
         setPassengers(newPassengers);
     };
@@ -135,6 +151,35 @@ const SearchBar = ({
                     />
                     )}
                 </div>
+
+                {/* Budget level */}
+                <div className="form-field">
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                        Budget
+                    </label>
+                    <div className="flex items-center gap-2 bg-stone-100 rounded-full p-1">
+                        {BUDGET_OPTIONS.map((opt) => {
+                            const isActive = budgetLevel === opt.value;
+                                return (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => handleBudgetClick(opt.value)}
+                                        className={[
+                                            "flex-1 text-xs sm:text-sm px-3 py-1 rounded-full transition font-semibold",
+                                            isActive
+                                            ? "bg-orange-500 text-white shadow"
+                                            : "text-stone-600 hover:text-stone-800 hover:bg-white",
+                                        ].join(" ")}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                );
+                            })
+                        }
+                    </div>
+                </div>
+
 
                 {/* Submit button – full width on its own row */}
                 <div className="md:col-span-2 flex justify-end mt-1">
