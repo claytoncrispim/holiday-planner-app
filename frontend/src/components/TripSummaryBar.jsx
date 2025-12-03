@@ -1,5 +1,5 @@
 import { MapPin, Calendar, Users, Wallet } from "lucide-react";
-import formatDate from "../tools/dateFormatter";
+import formatDate from "../utils/formatDate";
 
 const TripSummaryBar = ({
   originName,

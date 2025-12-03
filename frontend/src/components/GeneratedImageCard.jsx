@@ -1,5 +1,5 @@
 import { Image as ImageIcon, MapPin } from "lucide-react";
-import formatDate from "../tools/dateFormatter";
+import formatDate from "../utils/formatDate";
 
 const GeneratedImageCard = ({
   imageUrl,

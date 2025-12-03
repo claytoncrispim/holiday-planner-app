@@ -1,5 +1,5 @@
 import { Plane, ArrowRight } from "lucide-react";
-import currencyFormatter from "../tools/currencyFormatter";
+import currencyFormatter from "../utils/currencyFormatter";
 
 const FlightCard = ({ flight, selectedCurrency }) => {
   // Support both older and newer field names from Gemini
@@ -12,7 +12,7 @@ const FlightCard = ({ flight, selectedCurrency }) => {
 
   return (
     <article className="bg-white rounded-2xl shadow-md p-4 sm:p-5 flex flex-col gap-3 border border-amber-50 fade-in-soft">
-      
+
       {/* Airline + route */}
       <header className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -38,6 +38,9 @@ const FlightCard = ({ flight, selectedCurrency }) => {
             </p>
             <p className="text-lg font-bold text-orange-700">
               {currencyFormatter("en-US", selectedCurrency, price)}
+              {/* <span className="text-xs font-normal text-stone-500">
+                {" pp"}
+              </span> */}
             </p>
             {totalPrice != null && (
               <p className="text-xs text-stone-500">

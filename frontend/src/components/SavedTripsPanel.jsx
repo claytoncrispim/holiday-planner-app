@@ -1,5 +1,5 @@
 import { Calendar, MapPin, Users, Wallet, Trash2, RotateCcw } from "lucide-react";
-import formatDate from "../tools/dateFormatter";
+import formatDate from "../utils/formatDate";
 
 const budgetLabels = {
   low: "Budget",
@@ -50,6 +50,12 @@ const SavedTripsPanel = ({ savedTrips, onSelectTrip, onDeleteTrip }) => {
                     <MapPin size={14} className="text-orange-500" />
                     <span className="font-semibold">
                       {trip.origin} → {trip.destination}
+                      {trip.compareDestination && (
+                        <span className="text-[11px] text-stone-500">
+                          {" "}
+                          vs {trip.compareDestination}
+                        </span>
+                      )}
                     </span>
                   </div>
 

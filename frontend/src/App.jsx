@@ -8,9 +8,10 @@ import InfoSectionCard from "./components/InfoSectionCard";
 import GeneratedImageCard from "./components/GeneratedImageCard";
 import TripSummaryBar from "./components/TripSummaryBar";
 import SavedTripsPanel from "./components/SavedTripsPanel";
-
+import DestinationGuideColumn from './components/DestinationGuideColumn';
 // Import of Formatters
-import formatDate from './tools/dateFormatter';
+import formatDate from './utils/formatDate';
+
 
 // --- HELPERS ---
 
@@ -20,7 +21,7 @@ const callGemini = async (prompt) => {
     let response;
     try {
         response = await fetch(
-        "http://localhost:8080/generate-guide", {
+            "http://localhost:8080/generate-guide", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt }),
@@ -44,13 +45,13 @@ const callGemini = async (prompt) => {
 
     if (!response.ok) {
         // Backend returned an error status
-        const message = 
+        const message =
             data?.error ||
             `Server returned an error (${response.status}). Please try again`;
 
-            const err = new Error(message);
-            err.status = response.status;
-            throw err;
+        const err = new Error(message);
+        err.status = response.status;
+        throw err;
     }
 
     // The backend now returns structured JSON, so we return it directly
@@ -75,6 +76,60 @@ const calculateNights = (start, end) => {
 
 }
 
+// --- PROMPT BUILDER FUNCTION ---
+// Helper function to build the Gemini prompt
+const buildPrompt = ({
+    origin,
+    destination,
+    departureDate,
+    returnDate,
+    passengers,
+    nights,
+    budgetLevel,
+    selectedCurrency,
+}) => {
+    return `
+        Generate a JSON object describing travel options for:
+        Origin: ${origin}
+        Destination: ${destination}
+        Date: ${formatDate(departureDate)} to ${formatDate(returnDate)}
+        Passengers: ${JSON.stringify(passengers)}
+        Trip length in nights: ${nights !== null ? nights : "Not specified"
+        }.
+        Budget level: ${budgetLevel || "not specified"
+        } (low = budget-conscious, medium = balanced, high = comfort-focused).
+
+        Use the budget level when describing flight choices, hotels, and packages.
+
+        For example, for low budget focus on economy options and value deals, for high budget highlight comfort, convenience, and premium experiences.
+
+        The JSON must contain (DO NOT include code fences or markdown formatting.):
+        - originName
+        - destinationName
+        - flights (array) {
+            airline (string)
+            flightNumber (string)
+            flightPricePerPerson (number)
+
+            For each flight, calculate totalPrice as:
+                totalFlightPrice = flightPricePerPerson * (number of Passengers)
+            Return prices in chosen currency: ${selectedCurrency}
+        }
+        - hotelInfo (string)
+        - travelPackages (string)
+        - comparisonInfo (string)
+        - imageGenPrompt (string)
+
+        If the trip length is provided, tailor flight, hotel, and package recommendations to that duration (e.g., suitable for a weekend, 7 nights, or a long stay).
+
+        Ensure all prices reflect the selected currency: ${selectedCurrency}.
+
+        Ensure the generated imageGenPrompt reflects a photorealistic image of the ${destination}.
+        
+        Ensure the generated imageGenPrompt reflects a photorealistic image of a diverse type of travelers (matching the passenger details) enjoying iconic landmarks or activities in ${destination} during ${nights !== null ? nights + " nights" : "their trip"}.
+    `;
+}
+
 // --- END OF HELPERS --- 
 
 
@@ -91,6 +146,8 @@ const App = () => {
     const [origin, setOrigin] = useState('');
     // State for the destination input
     const [destination, setDestination] = useState('');
+    // State for the compare destination input
+    const [compareDestination, setCompareDestination] = useState('');
     // State for the departure date
     const [departureDate, setDepartureDate] = useState('');
     // State for the return date
@@ -106,8 +163,10 @@ const App = () => {
     });
 
     // --- States for managing the travel guide response ---
-    // State to hold the travel guide from the Gemini API
+    // Primary guide data State to hold the travel guide from the Gemini API
     const [guideData, setGuideData] = useState(null);
+    // Secondary guide data state to hold the travel guide from the Gemini API for comparison
+    const [guideDataSecondary, setGuideDataSecondary] = useState(null);
     // State to manage loading status
     const [loading, setLoading] = useState(false);
     // State to hold any potential error messages
@@ -151,7 +210,7 @@ const App = () => {
         } catch (err) {
             console.error("Error saving trips to localStorage:", err);
         }
-        }, [savedTrips]);
+    }, [savedTrips]);
 
     // **** END OF EFFECTS *****
 
@@ -222,6 +281,7 @@ const App = () => {
         setError(null);
         setDateError(null);
         setGuideData(null);
+        setGuideDataSecondary(null);
         setImageUrl(null);
 
         try {
@@ -238,67 +298,59 @@ const App = () => {
                 return;
             }
 
-            // Construct the prompt for Gemini
-            const prompt = `
-                Generate a JSON object describing travel options for:
-                Origin: ${origin}
-                Destination: ${destination}
-                Date: ${formatDate(departureDate)} to ${formatDate(returnDate)}
-                Passengers: ${JSON.stringify(passengers)}
-                Trip length in nights: ${tripNights !== null ? tripNights : "Not specified"
-                }.
-                Budget level: ${
-                    budgetLevel || "not specified"
-                } (low = budget-conscious, medium = balanced, high = comfort-focused).
+            const destA = destination.trim();
+            const destB = compareDestination.trim();
 
-                Use the budget level when describing flight choices, hotels, and packages. 
-                For example, for low budget focus on economy options and value deals, for high budget highlight comfort, convenience, and premium experiences.
+            // Build prompt for primary destination
+            const promptA = buildPrompt({
+                origin,
+                destination: destA,
+                departureDate,
+                returnDate,
+                passengers,
+                nights: tripNights,
+                budgetLevel,
+                selectedCurrency,
+            });
 
+            // Always call for primary destination first
+            const primaryResponse = await callGemini(promptA);
+            console.log("Primary Gemini response:", primaryResponse);
+            setGuideData(primaryResponse);
 
-                The JSON must contain (DO NOT include code fences or markdown formatting.
-                ):
-                - originName
-                - destinationName
-                - flights (array) {
-                    airline (string)
-                    flightNumber (string)
-                    flightPricePerPerson (number)
-
-                    For each flight, calculate totalPrice as:
-                        totalFlightPrice = flightPricePerPerson * (number of Passengers)
-                    Return prices in chosen currency: ${selectedCurrency}
-                }
-                - hotelInfo (string)
-                - travelPackages (string)
-                - comparisonInfo (string)
-                - imageGenPrompt (string)
-
-                If the trip length is provided, tailor flight, hotel, and package recommendations to that duration (e.g., suitable for a weekend, 7 nights, or a long stay).
-
-                Ensure all prices reflect the selected currency: ${selectedCurrency}.
-
-                Ensure the generated imageGenPrompt reflects a photorealistic image of the ${destination}.
-                
-                Ensure the generated imageGenPrompt reflects a photorealistic image of a diverse type of travelers (matching the passenger details) enjoying iconic landmarks or activities in ${destination} during ${tripNights !== null ? tripNights + " nights" : "their trip"}.
-            `;
-
-            // Call Gemini API
-            const geminiResponse = await callGemini(prompt);
-            console.log("Gemini response:", geminiResponse);
-
-            // geminiResponse is already parsed JSON
-            setGuideData(geminiResponse);
-
-            // Generate beased on Gemini's suggestion
-            if (geminiResponse.imageGenPrompt) {
-                await handleGenerateImage(geminiResponse.imageGenPrompt);
+            // Generate image based on primary suggestion
+            if (primaryResponse.imageGenPrompt) {
+                await handleGenerateImage(primaryResponse.imageGenPrompt);
             }
+
+            // If there is no comparison destination, we are done
+            if (!destB) {
+                return;
+            }
+
+            // Build prompt for secondary destination
+            const promptB = buildPrompt({
+                origin,
+                destination: destB,
+                departureDate,
+                returnDate,
+                passengers,
+                nights: tripNights,
+                budgetLevel,
+                selectedCurrency,
+            });
+
+            // Call for secondary destination
+            const secondaryResponse = await callGemini(promptB);
+            console.log("Secondary Gemini response:", secondaryResponse);
+            setGuideDataSecondary(secondaryResponse);
+
         } catch (err) {
             console.error("Frontend error in handleGetGuide:", err);
 
             // Custom network marker
             if (err.message === "NETWORK_ERROR") {
-                userMessage = 
+                userMessage =
                     "I couldn’t reach the Holiday Planner server. Make sure the backend is running on http://localhost:8080 and your connection is OK.";
             }
             // JSON parse / unexpected format
@@ -306,19 +358,19 @@ const App = () => {
                 err.message === "INVALID_JSON_FROM_SERVER" ||
                 err.message === "UNEXPECTED_RESPONSE_SHAPE"
             ) {
-                userMessage = 
+                userMessage =
                     "The AI reply came back in an unexpected format. Please try again in a moment.";
             }
             // HTTP status-based messages
             else if (typeof err.status === "number") {
                 if (err.status === 429) {
-                    userMessage = 
+                    userMessage =
                         "The AI service is receiving too many requests right now. Please try again in a few seconds.";
                 } else if (err.status >= 500) {
-                    userMessage = 
+                    userMessage =
                         "Our server had a problem while generating your guide. Please try again shortly.";
                 } else if (err.status >= 400 && err.status < 500) {
-                    userMessage = 
+                    userMessage =
                         "There was an issue with the request. Please check your inputs and try again.";
                 }
             }
@@ -326,7 +378,7 @@ const App = () => {
             else if (err.message && err.message !== "NETWORK_ERROR") {
                 userMessage = err.message;
             }
-            
+
             setError(userMessage);
 
         } finally {
@@ -340,6 +392,7 @@ const App = () => {
     const handleResetSearch = () => {
         setOrigin('');
         setDestination('');
+        setCompareDestination('');
         setDepartureDate('');
         setReturnDate('');
         setPassengers({
@@ -350,6 +403,7 @@ const App = () => {
         });
         setBudgetLevel("medium");
         setGuideData(null);
+        setGuideDataSecondary(null);
         setError(null);
         setImageUrl(null);
     };
@@ -365,6 +419,7 @@ const App = () => {
             id: Date.now().toString(),
             origin,
             destination,
+            compareDestination: compareDestination || "",
             departureDate,
             returnDate,
             nights,
@@ -388,7 +443,7 @@ const App = () => {
         if (isDuplicate) {
             return;
         }
-        
+
         setSavedTrips((prev) => [newTrip, ...prev]);
     };
 
@@ -397,6 +452,7 @@ const App = () => {
     const handleSelectSavedTrip = (trip) => {
         setOrigin(trip.origin || "");
         setDestination(trip.destination || "");
+        setCompareDestination(trip.compareDestination || "");
         setDepartureDate(trip.departureDate || "");
         setReturnDate(trip.returnDate || "");
         setPassengers(trip.passengers || {
@@ -417,8 +473,8 @@ const App = () => {
         // Scroll to the form so the user can review and click "Find destination"
         if (searchFormRef.current) {
             searchFormRef.current.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
+                behavior: "smooth",
+                block: "start",
             });
         }
     };
@@ -492,10 +548,10 @@ const App = () => {
                     {guideData && (
                         <div className="flex justify-end mt-1">
                             <button
-                            type="button"
-                            onClick={handleSaveCurrentTrip}
-                            disabled={loading}
-                            className="text-xs sm:text-sm font-semibold text-emerald-700 hover:text-emerald-800 underline disabled:opacity-50"
+                                type="button"
+                                onClick={handleSaveCurrentTrip}
+                                disabled={loading}
+                                className="text-xs sm:text-sm font-semibold text-emerald-700 hover:text-emerald-800 underline disabled:opacity-50"
                             >
                                 Save this trip
                             </button>
@@ -510,6 +566,8 @@ const App = () => {
                             setOrigin={setOrigin}
                             destination={destination}
                             setDestination={setDestination}
+                            compareDestination={compareDestination}
+                            setCompareDestination={setCompareDestination}
                             departureDate={departureDate}
                             setDepartureDate={setDepartureDate}
                             returnDate={returnDate}
@@ -581,71 +639,81 @@ const App = () => {
                         </div>
                     )}
 
-                    {/* ONLY SHOWS RESULTS *AFTER* LOADING IS COMPLETE */}
-                    {!loading && guideData && (
-                        <section className="mt-8 space-y-6 fade-in-soft">
-                            {/* Destination header card */}
-                            <div className="bg-gradient-to-r from-sky-100 via-amber-50 to-amber-100 rounded-2xl p-4 sm:p-5 shadow-md border border-amber-100">
-                                <p className="text-xs uppercase tracking-wide text-stone-500 mb-1">
-                                    Suggested trip
-                                </p>
-                                <h2 className="text-2xl font-bold text-stone-800">
-                                    {guideData.originName
-                                        ? `${guideData.originName} → ${guideData.destinationName}`
-                                        : guideData.destinationName}
-                                </h2>
-                                <p className="text-sm text-stone-600 mt-1">
-                                    From{" "}
-                                    <span className="font-semibold">
-                                        {formatDate(departureDate)}
-                                    </span>{" "}
-                                    to{" "}
-                                    <span className="font-semibold">
-                                        {formatDate(returnDate)}
-                                    </span>
-                                </p>
-                            </div>
+                    {/* SINGLE DESTINATION MODE */}
+                    {!loading && guideData && !guideDataSecondary && (
+                    <section className="mt-8 space-y-6 fade-in-soft">
+                        {/* Existing single-destination layout, using guideData exactly as before */}
+                        <div className="bg-gradient-to-r from-sky-100 via-orange-50 to-emerald-50 rounded-2xl p-4 sm:p-5 shadow-md border border-amber-100">
+                            <p className="text-xs uppercase tracking-wide text-stone-500 mb-1">
+                                Suggested trip
+                            </p>
+                            <h2 className="text-2xl font-bold text-stone-800">
+                                {guideData.originName
+                                ? `${guideData.originName} → ${guideData.destinationName}`
+                                : guideData.destinationName}
+                            </h2>
+                            <p className="text-sm text-stone-600 mt-1">
+                                From{" "}
+                                <span className="font-semibold">
+                                {formatDate(departureDate)}
+                                </span>{" "}
+                                to{" "}
+                                <span className="font-semibold">
+                                {formatDate(returnDate)}
+                                </span>
+                            </p>
+                        </div>
 
-                            {/* Flights */}
-                            {guideData?.flights?.length > 0 && (
-                                <section className="space-y-3">
-                                    <h3 className="text-lg font-semibold text-stone-800 flex items-center gap-2">
-                                        ✈️ Flight options
-                                    </h3>
-                                    <div className="space-y-3">
-                                        {guideData.flights.map((f, idx) => (
-                                            <FlightCard
-                                                key={f.id || `${f.airline}-${f.flightNumber || idx}`}
-                                                flight={f}
-                                                selectedCurrency={selectedCurrency}
-                                            />
-                                        ))}
-                                    </div>
-                                </section>
-                            )}
+                        {/* Flights, hotels, comparison using the previous cards */}
+                        {/* You can keep the old structure here or use DestinationGuideColumn for consistency */}
 
-                            {/* Hotels */}
-                            {guideData.hotelInfo && (
-                                <InfoSectionCard title="Where to stay" emoji="🏨">
-                                    {guideData.hotelInfo}
-                                </InfoSectionCard>
-                            )}
-
-                            {/* Travel Packages */}
-                            {guideData.travelPackages && (
-                                <InfoSectionCard title="Package deals" emoji="📦">
-                                    {guideData.travelPackages}
-                                </InfoSectionCard>
-                            )}
-
-                            {/* Comparison */}
-                            {guideData.comparisonInfo && (
-                                <InfoSectionCard title="What’s the best option?" emoji="⚖️">
-                                    {guideData.comparisonInfo}
-                                </InfoSectionCard>
-                            )}
-                        </section>
+                        <DestinationGuideColumn
+                            titlePrefix="Destination"
+                            guide={guideData}
+                            departureDate={departureDate}
+                            returnDate={returnDate}
+                            selectedCurrency={selectedCurrency}
+                            showHeader={false}
+                        />
+                    </section>
                     )}
+
+                    {/* COMPARE MODE: TWO DESTINATIONS */}
+                    {!loading && guideData && guideDataSecondary && (
+                    <section className="mt-8 space-y-4 fade-in-soft">
+                        <div className="text-center">
+                        <p className="text-xs uppercase tracking-wide text-stone-500 mb-1">
+                            Comparing destinations
+                        </p>
+                        <h2 className="text-xl md:text-2xl font-semibold text-stone-800">
+                            {guideData.destinationName} vs{" "}
+                            {guideDataSecondary.destinationName}
+                        </h2>
+                        <p className="text-xs text-stone-500 mt-1">
+                            Same dates, passengers and budget — different vibes.
+                        </p>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-4 md:gap-6">
+                        <DestinationGuideColumn
+                            titlePrefix="Option A"
+                            guide={guideData}
+                            departureDate={departureDate}
+                            returnDate={returnDate}
+                            selectedCurrency={selectedCurrency}
+                        />
+
+                        <DestinationGuideColumn
+                            titlePrefix="Option B"
+                            guide={guideDataSecondary}
+                            departureDate={departureDate}
+                            returnDate={returnDate}
+                            selectedCurrency={selectedCurrency}
+                        />
+                        </div>
+                    </section>
+                    )}
+
 
 
                     {/* IMAGE LOADING SPINNER */}

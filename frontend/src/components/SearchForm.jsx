@@ -8,6 +8,8 @@ const SearchBar = ({
     setOrigin, 
     destination, 
     setDestination, 
+    compareDestination,
+    setCompareDestination,
     departureDate, 
     setDepartureDate, 
     returnDate, 
@@ -91,7 +93,7 @@ const SearchBar = ({
                 {/* Destination */}
                 <div className="form-field">
                     <label className="block text-sm font-medium text-stone-700 mb-1">
-                    Destination
+                    Destination A
                     </label>
                     <input
                     type="text"
@@ -100,6 +102,23 @@ const SearchBar = ({
                     placeholder="Where do you want to go?"
                     className="w-full p-3 rounded-lg border border-stone-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition text-base hover:border-amber-400"
                     />
+                </div>
+
+                {/* Compare destination (optional) */}
+                <div className="form-field">
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                        Compare with (optional)
+                    </label>
+                    <input
+                        type="text"
+                        value={compareDestination}
+                        onChange={(e) => setCompareDestination(e.target.value)}
+                        placeholder="e.g. Gran Canaria, Madeira, Malaga..."
+                        className="w-full p-3 rounded-lg border border-stone-200 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none transition text-base hover:border-amber-400"
+                    />
+                    <p className="mt-1 text-[11px] text-stone-500">
+                        If filled, we&apos;ll compare both destinations side by side.
+                    </p>
                 </div>
 
                 {/* Departure Date */}
