@@ -31,24 +31,19 @@
   animation: fadeIn 0.18s ease-out;
 }
 
-/* --- Summer background pattern (very subtle) --- */
 
-/* .bg-summer-pattern {
-  background-image:
-    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 55%),
-    radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.8) 0, rgba(255, 255, 255, 0) 50%);
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-} */
+/* ---------- Global page background & AI overlay ---------- */
 
 body {
-  /* base sky color (approx Tailwind sky-50) */
+  /* Base sky colour (approx Tailwind sky-50) */
   background-color: #e0f2fe;
 
-  /* soft radial highlights in corners */
+  /* Soft radial highlights in corners */
   background-image:
     radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 55%),
     radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.8) 0, rgba(255, 255, 255, 0) 50%);
   background-repeat: no-repeat;
   background-attachment: fixed;
+
+  position: relative;
 }

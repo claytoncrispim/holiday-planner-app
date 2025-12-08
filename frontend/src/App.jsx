@@ -3,8 +3,6 @@ import { useState, useRef, useEffect } from 'react';
 import CurrencySelector from './components/CurrencySelector';
 import LoadingSpinner from './components/LoadingSpinner';
 import SearchForm from './components/SearchForm';
-import FlightCard from "./components/FlightCard";
-import InfoSectionCard from "./components/InfoSectionCard";
 import GeneratedImageCard from "./components/GeneratedImageCard";
 import TripSummaryBar from "./components/TripSummaryBar";
 import SavedTripsPanel from "./components/SavedTripsPanel";
@@ -88,6 +86,37 @@ const buildPrompt = ({
     budgetLevel,
     selectedCurrency,
 }) => {
+    // Detect if there are minors in the group
+    const hasMinors = 
+        passengers &&
+            (   
+                // if any of these counts are greater than zero
+                // then we have minors in the group
+                // at least one child, infant, or young adult
+                // considered a minor for travel purposes
+                (passengers.children ?? 0) > 0 ||
+                (passengers.infants ?? 0) > 0 ||
+                (passengers.youngAdults ?? 0) > 0
+            );
+    
+    const imagePromptInstruction = hasMinors
+    ? `
+        Create the imageGenPrompt so that it focuses mainly on the scenery
+        and atmosphere of ${destination}. You may include a few generic
+        adult travellers in the distance, but DO NOT mention children,
+        kids, minors, teens, or infants explicitly in the imageGenPrompt.
+        The style should be photorealistic but travel-poster friendly.
+      `
+    : `
+        Create the imageGenPrompt as a photorealistic travel scene of
+        adult travellers enjoying iconic landmarks or activities in
+        ${destination} during ${
+          nights !== null ? nights + " nights" : "their trip"
+        }.
+        Focus on a diverse group of adult travellers and the destination's
+        key scenery.
+      `;
+    
     return `
         Generate a JSON object describing travel options for:
         Origin: ${origin}
@@ -124,17 +153,43 @@ const buildPrompt = ({
 
         Ensure all prices reflect the selected currency: ${selectedCurrency}.
 
-        Ensure the generated imageGenPrompt reflects a photorealistic image of the ${destination}.
-        
-        Ensure the generated imageGenPrompt reflects a photorealistic image of a diverse type of travelers (matching the passenger details) enjoying iconic landmarks or activities in ${destination} during ${nights !== null ? nights + " nights" : "their trip"}.
+        ${imagePromptInstruction}
     `;
 }
 
+// --- FLIGHT PRICE EXTRACTION HELPER ---
+// Helper function to get the cheapest flight price from the guide data
+const getCheapestFlightPrice = (guide) => {
+  if (!guide || !Array.isArray(guide.flights) || guide.flights.length === 0) {
+    return null;
+  }
+
+  let min = null;
+
+  for (const f of guide.flights) {
+    const price =
+      f.totalFlightPrice ??
+      f.totalPriceEUR ??
+      f.flightPrice ??
+      f.priceEUR ??
+      f.price ??
+      null;
+
+    if (typeof price === "number" && !isNaN(price)) {
+      if (min === null || price < min) {
+        min = price;
+      }
+    }
+  }
+
+  return min;
+};
 // --- END OF HELPERS --- 
 
 
 // --- MAIN APP COMPONENT ---
 const App = () => {
+
     // **** STATE VARIABLES ****
 
     // --- Currency state ---
@@ -181,10 +236,13 @@ const App = () => {
 
     // --- Saved trips state ---
     const [savedTrips, setSavedTrips] = useState([]);
+
     // **** END OF STATE VARIABLES ****
 
 
+
     // **** EFFECTS *****
+
     // Load saved trips from localStorage on initial render
     useEffect(() => {
         try {
@@ -250,7 +308,8 @@ const App = () => {
 
             const base64 = data.predictions?.[0]?.bytesBase64Encoded;
             if (!base64) {
-                throw new Error('No image returned from image generation.');
+                console.warn('No image returned from image generation. Prompt may have been blocked.');
+                return;
             }
 
             setImageUrl(`data:image/png;base64,${base64}`);
@@ -487,10 +546,42 @@ const App = () => {
 
     // **** END OF HANDLER FUNCTIONS *****
 
+    // Compute the cheapest flight prices for display
+    const cheapestA = getCheapestFlightPrice(guideData);
+    const cheapestB = getCheapestFlightPrice(guideDataSecondary);
+
+    let cheaperLabel = null;
+    if (
+        typeof cheapestA === "number" &&
+        typeof cheapestB === "number" &&
+        cheapestA !== cheapestB
+    ) {
+        // Determine which guide is cheaper
+        // If guide A is cheaper, it's guideData, else guideDataSecondary
+        const cheaperGuide =
+            cheapestA < cheapestB ? guideData : guideDataSecondary;
+
+        cheaperLabel = cheaperGuide.destinationName || null;
+    }
+
     // --- RENDERING THE APP COMPONENT ---
     return (
-        <div className="min-h-screen font-sans p-4 sm:p-6 md:p-8">
+        <div className="relative min-h-screen font-sans p-4 sm:p-6 md:p-8">
             <div className="container mx-auto max-w-3xl">
+                {/* Soft Imagen background overlay */}
+                {imageUrl && !isImageLoading && (
+                    <div
+                        className="
+                            pointer-events-none
+                            absolute inset-0
+                            opacity-10
+                            sm:opacity-15
+                            bg-cover bg-center
+                            blur-sm
+                        "
+                        style={{ backgroundImage: `url(${imageUrl})` }}
+                    />
+                )}
 
                 {/* HEADER */}
                 <header className="text-center my-6 md:my-8">
@@ -638,7 +729,7 @@ const App = () => {
                             <LoadingSpinner />
                         </div>
                     )}
-
+                    
                     {/* SINGLE DESTINATION MODE */}
                     {!loading && guideData && !guideDataSecondary && (
                     <section className="mt-8 space-y-6 fade-in-soft">
@@ -667,12 +758,14 @@ const App = () => {
                         {/* Flights, hotels, comparison using the previous cards */}
                         {/* You can keep the old structure here or use DestinationGuideColumn for consistency */}
 
+                        {/* Single Destination Guide Column */}                                        
                         <DestinationGuideColumn
                             titlePrefix="Destination"
                             guide={guideData}
                             departureDate={departureDate}
                             returnDate={returnDate}
                             selectedCurrency={selectedCurrency}
+                            passengers={passengers}
                             showHeader={false}
                         />
                     </section>
@@ -682,18 +775,26 @@ const App = () => {
                     {!loading && guideData && guideDataSecondary && (
                     <section className="mt-8 space-y-4 fade-in-soft">
                         <div className="text-center">
-                        <p className="text-xs uppercase tracking-wide text-stone-500 mb-1">
-                            Comparing destinations
-                        </p>
-                        <h2 className="text-xl md:text-2xl font-semibold text-stone-800">
-                            {guideData.destinationName} vs{" "}
-                            {guideDataSecondary.destinationName}
-                        </h2>
-                        <p className="text-xs text-stone-500 mt-1">
-                            Same dates, passengers and budget — different vibes.
-                        </p>
+                            <p className="text-xs uppercase tracking-wide text-stone-500 mb-1">
+                                Comparing destinations
+                            </p>
+                            <h2 className="text-xl md:text-2xl font-semibold text-stone-800">
+                                {guideData.destinationName} vs{" "}
+                                {guideDataSecondary.destinationName}
+                            </h2>
+                            <p className="text-xs text-stone-500 mt-1">
+                                Same dates, passengers and budget — different vibes.
+                            </p>
+                            {cheaperLabel && (
+                                <p className="mt-1 text-xs text-emerald-700">
+                                    💡 Based on the cheapest flights,{" "}
+                                    <span className="font-semibold">{cheaperLabel}</span> looks a bit
+                                    more budget-friendly.
+                                </p>
+                            )}
                         </div>
 
+                        {/* Destination A */}
                         <div className="grid md:grid-cols-2 gap-4 md:gap-6">
                         <DestinationGuideColumn
                             titlePrefix="Option A"
@@ -701,14 +802,16 @@ const App = () => {
                             departureDate={departureDate}
                             returnDate={returnDate}
                             selectedCurrency={selectedCurrency}
+                            passengers={passengers}
                         />
-
+                        {/* Destination B */}
                         <DestinationGuideColumn
                             titlePrefix="Option B"
                             guide={guideDataSecondary}
                             departureDate={departureDate}
                             returnDate={returnDate}
                             selectedCurrency={selectedCurrency}
+                            passengers={passengers}
                         />
                         </div>
                     </section>

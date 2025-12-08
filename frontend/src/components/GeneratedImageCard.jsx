@@ -85,6 +85,10 @@ const GeneratedImageCard = ({
               </p>
             )}
           </div>
+          {/*  AI transparency line */}
+          <p className="mt-2 text-[11px] text-stone-400 text-right">
+            AI-generated view of your destination
+          </p>
         </div>
       </div>
     </section>

@@ -1,19 +1,83 @@
 import { Plane, ArrowRight } from "lucide-react";
 import currencyFormatter from "../utils/currencyFormatter";
 
-const FlightCard = ({ flight, selectedCurrency }) => {
+// --- HELPER ---
+// Helper to build Google Flights URL
+const buildGoogleFlightsUrl = ({ 
+    originName, 
+    destinationName, 
+    departureDate, 
+    returnDate,
+    totalPassengers,
+}) => {
+      // Fallback: if we’re missing critical info, just search by route text
+      if (!originName || !destinationName) {
+        const q = encodeURIComponent(
+          `Flights from ${originName || ""} to ${destinationName || ""}`
+        );
+        return `https://www.google.com/flights?q=${q}`;
+      }
+
+      let datePart = "";
+      if (departureDate && returnDate) {
+        datePart = `on ${departureDate} to ${returnDate}`;
+      } else if (departureDate) {
+        datePart = `on ${departureDate}`;
+      }
+
+      let paxPart = "";
+      if (typeof totalPassengers === "number" && totalPassengers > 0) {
+        paxPart = ` for ${totalPassengers} passenger${
+            totalPassengers > 1 ? "s" : ""
+        }`;
+      }
+
+      const query = `Flights from ${originName} to ${destinationName} ${datePart} ${paxPart}`;
+      const encoded = encodeURIComponent(query.trim());
+
+      return `https://www.google.com/flights?q=${encoded}`;
+  };
+  
+
+const FlightCard = ({ 
+  flight, 
+  selectedCurrency,
+  originName,
+  destinationName,
+  departureDate,
+  returnDate,
+  totalPassengers,
+}) => {
+  if (!flight) return null;
+
+  const googleFlightsUrl = 
+  buildGoogleFlightsUrl({
+    originName,
+    destinationName,
+    departureDate,
+    returnDate,
+    totalPassengers,
+  });
+
   // Support both older and newer field names from Gemini
   const price =
-    flight.flightPrice ?? flight.priceEUR ?? flight.price ?? flight.flightPricePerPerson ?? null;
+    flight.flightPrice ?? 
+    flight.priceEUR ?? 
+    flight.price ?? 
+    flight.flightPricePerPerson ?? 
+    null;
+  
   const totalPrice =
-    flight.totalFlightPrice ?? flight.totalPriceEUR ?? null;
+    flight.totalFlightPrice ?? 
+    flight.totalPriceEUR ?? 
+    null;
 
   const hasTimes = flight.departureTime && flight.arrivalTime;
 
-  return (
-    <article className="bg-white rounded-2xl shadow-md p-4 sm:p-5 flex flex-col gap-3 border border-amber-50 fade-in-soft">
 
-      {/* Airline + route */}
+ return (
+    <article className="bg-white rounded-2xl shadow-md p-4 sm:p-5 flex flex-col gap-3 border border-amber-50 fade-in-soft">
+      {/* Airline + route + prices */}
       <header className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-full bg-sky-100 flex items-center justify-center">
@@ -24,9 +88,7 @@ const FlightCard = ({ flight, selectedCurrency }) => {
               {flight.airline || "Flight option"}
             </h4>
             <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-              {flight.flightNumber && (
-                <>Flight {flight.flightNumber}</>
-              )}
+              {flight.flightNumber && <>Flight {flight.flightNumber}</>}
             </p>
           </div>
         </div>
@@ -38,9 +100,8 @@ const FlightCard = ({ flight, selectedCurrency }) => {
             </p>
             <p className="text-lg font-bold text-orange-700">
               {currencyFormatter("en-US", selectedCurrency, price)}
-              {/* <span className="text-xs font-normal text-stone-500">
-                {" pp"}
-              </span> */}
+              {/* Uncomment if you want explicit pp label */}
+              {/* <span className="text-xs font-normal text-stone-500"> pp</span> */}
             </p>
             {totalPrice != null && (
               <p className="text-xs text-stone-500">
@@ -56,13 +117,9 @@ const FlightCard = ({ flight, selectedCurrency }) => {
       {hasTimes && (
         <div className="flex flex-wrap items-center gap-3 text-sm text-stone-700">
           <div className="flex items-center gap-2">
-            <span className="font-semibold">
-              {flight.departureTime}
-            </span>
+            <span className="font-semibold">{flight.departureTime}</span>
             <ArrowRight size={16} className="text-stone-400" />
-            <span className="font-semibold">
-              {flight.arrivalTime}
-            </span>
+            <span className="font-semibold">{flight.arrivalTime}</span>
           </div>
           {flight.duration && (
             <span className="px-2 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-medium">
@@ -83,29 +140,39 @@ const FlightCard = ({ flight, selectedCurrency }) => {
       {(flight.details || flight.layoverCity || flight.layoverAirport) && (
         <p className="text-sm text-stone-600">
           {flight.details}
-          {flight.layoverCity && (
-            <> Layover: {flight.layoverCity}.</>
-          )}
-          {flight.layoverAirport && (
-            <> Layover airport: {flight.layoverAirport}.</>
-          )}
+          {flight.layoverCity && <> Layover: {flight.layoverCity}.</>}
+          {flight.layoverAirport && <> Layover airport: {flight.layoverAirport}.</>}
         </p>
       )}
 
-      {/* Booking link if present */}
-      {flight.bookingLink && (
-        <div className="flex justify-end">
+      {/* Booking / search actions */}
+      <div className="flex flex-col items-end gap-0.5 mt-2">
+        <div className="flex gap-3">
+          {flight.bookingLink && (
+            <a
+              href={flight.bookingLink}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-amber-700 hover:text-amber-800"
+            >
+              View deal
+              <ArrowRight size={14} />
+            </a>
+          )}
+
           <a
-            href={flight.bookingLink}
+            href={googleFlightsUrl}
             target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-sm font-semibold text-amber-700 hover:text-amber-800"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-sky-700 hover:text-sky-900 underline"
           >
-            View deal
-            <ArrowRight size={14} />
+            Search on Google Flights
           </a>
         </div>
-      )}
+        <span className="text-[10px] text-stone-400">
+          Opens external site in a new tab
+        </span>
+      </div>
     </article>
   );
 };
