@@ -167,13 +167,30 @@ const getCheapestFlightPrice = (guide) => {
   let min = null;
 
   for (const f of guide.flights) {
-    const price =
+    // Try a bunch of possible fields Gemini might use
+    let raw =
       f.totalFlightPrice ??
       f.totalPriceEUR ??
+      f.totalPrice ??
+      f.flightTotalPrice ??
       f.flightPrice ??
+      f.flightPricePerPerson ??
       f.priceEUR ??
       f.price ??
       null;
+
+    let price = null;
+
+    if (typeof raw === "number") {
+      price = raw;
+    } else if (typeof raw === "string") {
+      // Strip currency symbols and text, keep digits / separators
+      const cleaned = raw.replace(/[^\d.,-]/g, "").replace(",", ".");
+      const parsed = parseFloat(cleaned);
+      if (!isNaN(parsed)) {
+        price = parsed;
+      }
+    }
 
     if (typeof price === "number" && !isNaN(price)) {
       if (min === null || price < min) {
@@ -184,6 +201,7 @@ const getCheapestFlightPrice = (guide) => {
 
   return min;
 };
+
 // --- END OF HELPERS --- 
 
 
@@ -549,6 +567,8 @@ const App = () => {
     // Compute the cheapest flight prices for display
     const cheapestA = getCheapestFlightPrice(guideData);
     const cheapestB = getCheapestFlightPrice(guideDataSecondary);
+    // Sanity check: only show cheaper label if prices are different
+    console.log("Cheapest A:", cheapestA, "Cheapest B:", cheapestB);
 
     let cheaperLabel = null;
     if (
@@ -564,10 +584,18 @@ const App = () => {
         cheaperLabel = cheaperGuide.destinationName || null;
     }
 
-    // --- RENDERING THE APP COMPONENT ---
+    // Flags for "best value" badges in compare mode
+    const hasBothPrices =
+        typeof cheapestA === "number" && typeof cheapestB === "number";
+
+    const isBestValueA = hasBothPrices && cheapestA < cheapestB;
+    const isBestValueB = hasBothPrices && cheapestB < cheapestA;
+
+    // --- RENDER THE APP COMPONENT ---
     return (
         <div className="relative min-h-screen font-sans p-4 sm:p-6 md:p-8">
             <div className="container mx-auto max-w-3xl">
+                
                 {/* Soft Imagen background overlay */}
                 {imageUrl && !isImageLoading && (
                     <div
@@ -575,7 +603,7 @@ const App = () => {
                             pointer-events-none
                             absolute inset-0
                             opacity-10
-                            sm:opacity-15
+                            sm:opacity-11
                             bg-cover bg-center
                             blur-sm
                         "
@@ -803,6 +831,7 @@ const App = () => {
                             returnDate={returnDate}
                             selectedCurrency={selectedCurrency}
                             passengers={passengers}
+                            isBestValue={isBestValueA}
                         />
                         {/* Destination B */}
                         <DestinationGuideColumn
@@ -812,6 +841,7 @@ const App = () => {
                             returnDate={returnDate}
                             selectedCurrency={selectedCurrency}
                             passengers={passengers}
+                            isBestValue={isBestValueB}
                         />
                         </div>
                     </section>

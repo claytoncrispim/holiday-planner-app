@@ -1,6 +1,7 @@
 import FlightCard from "./FlightCard";
 import InfoSectionCard from "./InfoSectionCard";
 import formatDate from "../utils/formatDate";
+import { Sparkles } from "lucide-react";
 
 
 // --- HELPERS ---
@@ -100,6 +101,7 @@ const DestinationGuideColumn = ({
     selectedCurrency,
     passengers,
     showHeader = true,
+    isBestValue = false,
 }) => {
     if (!guide) return null;
 
@@ -144,21 +146,33 @@ const DestinationGuideColumn = ({
             {/* Destination header */}
             {showHeader && (
                 <div className="bg-gradient-to-r from-sky-100 via-orange-50 to-emerald-50 rounded-xl p-3 shadow-sm border border-amber-100">
-                    <p className="text-[11px] uppercase tracking-wide text-stone-500 mb-1">
-                        {titlePrefix}
-                    </p>
-                    <h3 className="text-lg font-semibold text-stone-800">
-                        {guide.originName
-                            ? `${guide.originName} → ${guide.destinationName}`
-                            : guide.destinationName}
-                    </h3>
-                {departureDate && returnDate && (
-                    <p className="text-xs text-stone-600 mt-1">
-                        {formatDate(departureDate)} – {formatDate(returnDate)}
-                    </p>
-                )}
-            </div>
-        )}
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-[11px] uppercase tracking-wide text-stone-500 mb-1">
+                                {titlePrefix}
+                            </p>
+                            <h3 className="text-lg font-semibold text-stone-800">
+                                {guide.originName
+                                    ? `${guide.originName} → ${guide.destinationName}`
+                                    : guide.destinationName}
+                            </h3>
+                            {departureDate && returnDate && (
+                            <p className="text-xs text-stone-600 mt-1">
+                                {formatDate(departureDate)} – {formatDate(returnDate)}
+                            </p>
+                            )}
+                        </div>
+
+                        {isBestValue && (
+                            <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 border border-emerald-100 text-[11px] font-semibold text-emerald-700">
+                                <Sparkles size={12} className="text-emerald-500" />
+                                <span>Best value</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
 
             {/* Flights */}
             {guide?.flights?.length > 0 && (
