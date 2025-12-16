@@ -76,7 +76,21 @@ const FlightCard = ({
 
 
  return (
-    <article className="bg-white rounded-2xl shadow-md p-4 sm:p-5 flex flex-col gap-3 border border-amber-50 fade-in-soft">
+    <article className="
+    group
+    bg-white/95 
+    rounded-3xl 
+    shadow-md
+    border border-white/70
+    p-4 sm:p-5 md:p-6
+    flex flex-col gap-3
+    
+    transition-all duration-200
+    hover:-translate-y-1 
+    hover:shadow-xl
+    hover:shadow-sky-200/70
+    hover:border-sky-200/70
+    ">
       {/* Airline + route + prices */}
       <header className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -98,13 +112,14 @@ const FlightCard = ({
             <p className="text-xs uppercase tracking-wide text-stone-400">
               From
             </p>
-            <p className="text-lg font-bold text-orange-700">
+            <p className="text-lg font-bold text-orange-600 transition-colors duration-200 group-hover:text-orange-500">
               {currencyFormatter("en-US", selectedCurrency, price)}
               {/* Uncomment if you want explicit pp label */}
-              {/* <span className="text-xs font-normal text-stone-500"> pp</span> */}
+              <span className="text-xs font-normal text-stone-500
+              group-hover:text-stone-600 transition-colors duration-200"> pp</span>
             </p>
             {totalPrice != null && (
-              <p className="text-xs text-stone-500">
+              <p className="text-xs text-stone-500 group-hover:text-stone-600 transition-colors duration-200">
                 Total:{" "}
                 {currencyFormatter("en-US", selectedCurrency, totalPrice)}
               </p>
@@ -164,7 +179,12 @@ const FlightCard = ({
             href={googleFlightsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-sky-700 hover:text-sky-900 underline"
+            className="
+            text-xs sm:text-sm font-semibold
+            text-sky-700
+            underline underline-offset-2
+            transition-colors duration-150
+            group-hover:text-sky-900"
           >
             Search on Google Flights
           </a>

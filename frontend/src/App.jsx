@@ -591,6 +591,19 @@ const App = () => {
     const isBestValueA = hasBothPrices && cheapestA < cheapestB;
     const isBestValueB = hasBothPrices && cheapestB < cheapestA;
 
+    // Is the current trip already saved?
+    const isCurrentTripSaved =
+        !!guideData &&
+        savedTrips.some((t) =>
+            t.origin === origin &&
+            t.destination === destination &&
+            t.departureDate === departureDate &&
+            t.returnDate === returnDate &&
+            t.budgetLevel === budgetLevel &&
+            t.selectedCurrency === selectedCurrency
+        );
+
+
     // --- RENDER THE APP COMPONENT ---
     return (
         <div className="relative min-h-screen font-sans p-4 sm:p-6 md:p-8">
@@ -650,17 +663,35 @@ const App = () => {
                             returnDate={returnDate}
                             passengers={passengers}
                             budgetLevel={budgetLevel}
+                            isSaved={isCurrentTripSaved}
                             onChangeTrip={handleChangeTrip}
                         />
                     )}
 
-                    {/* SAVED TRIPS PANEL */}
-                    {savedTrips.length > 0 && (
+                    {/* SAVED TRIPS AREA */}
+                    {(guideData || savedTrips.length > 0) && (
+                    <section className="mt-6">
+                        <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 mb-1">
+                        Saved trips
+                        </h2>
+
+                        {savedTrips.length === 0 ? (
+                        <p className="text-xs sm:text-sm text-stone-400">
+                            You haven&apos;t saved any trips yet. When you find something you like,
+                            hit{" "}
+                            <span className="font-semibold text-emerald-700">
+                            “Save this trip”
+                            </span>{" "}
+                            and it will appear here.
+                        </p>
+                        ) : (
                         <SavedTripsPanel
                             savedTrips={savedTrips}
                             onSelectTrip={handleSelectSavedTrip}
                             onDeleteTrip={handleDeleteTrip}
                         />
+                        )}
+                    </section>
                     )}
 
                     {/* SAVE TRIP BUTTON */}
@@ -668,15 +699,19 @@ const App = () => {
                         <div className="flex justify-end mt-1">
                             <button
                                 type="button"
-                                onClick={handleSaveCurrentTrip}
-                                disabled={loading}
-                                className="text-xs sm:text-sm font-semibold text-emerald-700 hover:text-emerald-800 underline disabled:opacity-50"
+                                // Disable click if already saved, to avoid double saves, else call handler
+                                onClick={isCurrentTripSaved ? undefined : handleSaveCurrentTrip}
+                                disabled={loading || isCurrentTripSaved}
+                                className={`text-xs sm:text-sm font-semibold underline disabled:opacity-60 ${
+                                    isCurrentTripSaved
+                                        ? "text-emerald-600 cursor-default"
+                                        : "text-emerald-700 hover:text-emerald-800"
+                                }`}
                             >
-                                Save this trip
+                                {isCurrentTripSaved ? "Saved" : "Save this trip"}
                             </button>
                         </div>
                     )}
-
 
                     {/* SEARCH FORM (scrolls into view when changing trip) */}
                     <div ref={searchFormRef}>

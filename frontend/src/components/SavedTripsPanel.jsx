@@ -44,11 +44,26 @@ const SavedTripsPanel = ({ savedTrips, onSelectTrip, onDeleteTrip }) => {
                 <button
                   type="button"
                   onClick={() => onSelectTrip(trip)}
-                  className="flex-1 text-left"
+                  className="
+                    group
+                    w-full text-left
+                    rounded-2xl
+                    border border-stone-200
+                    bg-white/80
+                    px-3 py-3 mb-2
+                    
+                    text-sm text-stone-700
+                    
+                    transition-all duration-200
+                    hover:translate-y-[2px]
+                    hover:bg-sky-50/70
+                    hover:border-sky-200
+                    hover:shadow-md
+                  "
                 >
                   <div className="flex items-center gap-2 text-xs sm:text-sm text-stone-800">
                     <MapPin size={14} className="text-orange-500" />
-                    <span className="font-semibold">
+                    <span className="font-semibold text-stone-800 group-hover:text-sky-800 transition-colors duration-200">
                       {trip.origin} → {trip.destination}
                       {trip.compareDestination && (
                         <span className="text-[11px] text-stone-500">

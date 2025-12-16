@@ -1,7 +1,7 @@
 import FlightCard from "./FlightCard";
 import InfoSectionCard from "./InfoSectionCard";
 import formatDate from "../utils/formatDate";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Info } from "lucide-react";
 
 
 // --- HELPERS ---
@@ -163,12 +163,44 @@ const DestinationGuideColumn = ({
                             )}
                         </div>
 
-                        {isBestValue && (
-                            <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 border border-emerald-100 text-[11px] font-semibold text-emerald-700">
-                                <Sparkles size={12} className="text-emerald-500" />
-                                <span>Best value</span>
+                          {isBestValue && (
+                            <div className="relative group">
+                                {/* Pill */}
+                                <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 border border-emerald-100 text-[11px] font-semibold text-emerald-700 shadow-sm">
+                                    <Sparkles size={12} className="text-emerald-500" />
+                                    <span>Best value</span>
+
+                                    <button
+                                    type="button"
+                                    className="ml-1 inline-flex items-center justify-center rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+                                    aria-label="What does Best value mean?"
+                                    >
+                                    <Info size={11} />
+                                    </button>
+                                </div>
+
+                                {/* Tooltip */}
+                                <div
+                                    className="
+                                    pointer-events-none
+                                    absolute right-0 mt-1 w-52
+                                    rounded-lg bg-stone-900/95 text-[11px] text-stone-100
+                                    px-3 py-2 shadow-lg
+                                    opacity-0 translate-y-1
+                                    group-hover:opacity-100 group-hover:translate-y-0
+                                    transition-all duration-150
+                                    z-20
+                                    "
+                                >
+                                    <p className="font-semibold mb-0.5">How we pick “Best value”</p>
+                                    <p className="text-[10px] leading-snug text-stone-200">
+                                    We compare the lowest total flight price returned for each destination.
+                                    The option with the cheaper flight gets this badge.
+                                    </p>
+                                </div>
                             </div>
                         )}
+
                     </div>
                 </div>
             )}
@@ -179,6 +211,7 @@ const DestinationGuideColumn = ({
                 <section className="space-y-2">
                     <h4 className="text-sm font-semibold text-stone-800">
                         ✈️ Flight options
+                        <span className="float-right text-xs font-normal text-stone-500"> *pp (price per person)</span>
                     </h4>
                     <div className="space-y-2">
                         {guide.flights.map((f, idx) => (
