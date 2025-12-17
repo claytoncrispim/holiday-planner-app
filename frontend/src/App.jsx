@@ -114,7 +114,8 @@ const buildPrompt = ({
           nights !== null ? nights + " nights" : "their trip"
         }.
         Focus on a diverse group of adult travellers and the destination's
-        key scenery.
+        key scenery, regardless of the budget level.
+        Ensure the diverse group of adults are people of various ethnicities and backgrounds.
       `;
     
     return `
@@ -425,12 +426,16 @@ const App = () => {
         } catch (err) {
             console.error("Frontend error in handleGetGuide:", err);
 
-            // Custom network marker
+            // Safe default
+            let userMessage =
+                "Something went wrong while generating your travel guide. Please try again.";
+
+            // Custom network marker from callGemini
             if (err.message === "NETWORK_ERROR") {
                 userMessage =
-                    "I couldn’t reach the Holiday Planner server. Make sure the backend is running on http://localhost:8080 and your connection is OK.";
+                    "I couldn’t reach the Holiday Planner server. Please check that it’s running on http://localhost:8080 and that your connection is OK.";
             }
-            // JSON parse / unexpected format
+            // JSON parse / unexpected format from backend
             else if (
                 err.message === "INVALID_JSON_FROM_SERVER" ||
                 err.message === "UNEXPECTED_RESPONSE_SHAPE"
@@ -438,11 +443,11 @@ const App = () => {
                 userMessage =
                     "The AI reply came back in an unexpected format. Please try again in a moment.";
             }
-            // HTTP status-based messages
+            // HTTP status-based messages from backend
             else if (typeof err.status === "number") {
                 if (err.status === 429) {
                     userMessage =
-                        "The AI service is receiving too many requests right now. Please try again in a few seconds.";
+                        "The AI service is receiving too many requests right now. Please wait a few seconds and try again.";
                 } else if (err.status >= 500) {
                     userMessage =
                         "Our server had a problem while generating your guide. Please try again shortly.";
@@ -451,13 +456,12 @@ const App = () => {
                         "There was an issue with the request. Please check your inputs and try again.";
                 }
             }
-            // Fallback: If backend sent a message, use it
+            // Fallback: use any other message (except the internal marker)
             else if (err.message && err.message !== "NETWORK_ERROR") {
                 userMessage = err.message;
             }
 
             setError(userMessage);
-
         } finally {
             console.log("DEBUG: loading set to FALSE");
             setLoading(false);
@@ -689,6 +693,15 @@ const App = () => {
                             savedTrips={savedTrips}
                             onSelectTrip={handleSelectSavedTrip}
                             onDeleteTrip={handleDeleteTrip}
+                            currentTrip={{
+                                origin,
+                                destination,
+                                compareDestination,
+                                departureDate,
+                                returnDate,
+                                budgetLevel,
+                                selectedCurrency,
+                            }}
                         />
                         )}
                     </section>
@@ -859,25 +872,25 @@ const App = () => {
 
                         {/* Destination A */}
                         <div className="grid md:grid-cols-2 gap-4 md:gap-6">
-                        <DestinationGuideColumn
-                            titlePrefix="Option A"
-                            guide={guideData}
-                            departureDate={departureDate}
-                            returnDate={returnDate}
-                            selectedCurrency={selectedCurrency}
-                            passengers={passengers}
-                            isBestValue={isBestValueA}
-                        />
-                        {/* Destination B */}
-                        <DestinationGuideColumn
-                            titlePrefix="Option B"
-                            guide={guideDataSecondary}
-                            departureDate={departureDate}
-                            returnDate={returnDate}
-                            selectedCurrency={selectedCurrency}
-                            passengers={passengers}
-                            isBestValue={isBestValueB}
-                        />
+                            <DestinationGuideColumn
+                                titlePrefix="Option A"
+                                guide={guideData}
+                                departureDate={departureDate}
+                                returnDate={returnDate}
+                                selectedCurrency={selectedCurrency}
+                                passengers={passengers}
+                                isBestValue={isBestValueA}
+                            />
+                            {/* Destination B */}
+                            <DestinationGuideColumn
+                                titlePrefix="Option B"
+                                guide={guideDataSecondary}
+                                departureDate={departureDate}
+                                returnDate={returnDate}
+                                selectedCurrency={selectedCurrency}
+                                passengers={passengers}
+                                isBestValue={isBestValueB}
+                            />
                         </div>
                     </section>
                     )}

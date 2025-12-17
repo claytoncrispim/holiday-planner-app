@@ -7,7 +7,7 @@ const budgetLabels = {
   high: "Comfort",
 };
 
-const SavedTripsPanel = ({ savedTrips, onSelectTrip, onDeleteTrip }) => {
+const SavedTripsPanel = ({ savedTrips, onSelectTrip, onDeleteTrip, currentTrip = null }) => {
   if (!savedTrips || savedTrips.length === 0) return null;
 
   return (
@@ -36,10 +36,26 @@ const SavedTripsPanel = ({ savedTrips, onSelectTrip, onDeleteTrip }) => {
                 ? `${trip.nights} night${trip.nights > 1 ? "s" : ""}`
                 : null;
 
+            const isCurrent = 
+              currentTrip &&
+              trip.origin === currentTrip.origin &&
+              trip.destination === currentTrip.destination &&
+              (trip.compareDestination || "") === (currentTrip.compareDestination || "") &&
+              trip.departureDate === currentTrip.departureDate &&
+              trip.returnDate === currentTrip.returnDate &&
+              trip.budgetLevel === currentTrip.budgetLevel &&
+              trip.selectedCurrency === currentTrip.selectedCurrency;
+                
             return (
               <li
                 key={trip.id}
-                className="flex items-start justify-between gap-3 rounded-xl border border-stone-100 bg-stone-50/70 px-3 py-2 hover:border-orange-200 hover:bg-white transition"
+                className={`
+                  flex items-start justify-between gap-3 rounded-xl px-3 py-2 transition
+                  ${isCurrent
+                    ? "border border-emerald-300 bg-emerald-50/80 shadow-sm"
+                    : "border border-stone-100 bg-stone-50/70 hover:border-orange-200 hover:bg-white"
+                  }
+                `}
               >
                 <button
                   type="button"
@@ -72,6 +88,11 @@ const SavedTripsPanel = ({ savedTrips, onSelectTrip, onDeleteTrip }) => {
                         </span>
                       )}
                     </span>
+                    {isCurrent && (
+                        <span className="inline-flex items-center rounded-full bg-emerald-100 text-[10px] font-semibold text-emerald-700 px-2 py-0.5 ml-1">
+                          Current
+                        </span>
+                    )}
                   </div>
 
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-stone-500">

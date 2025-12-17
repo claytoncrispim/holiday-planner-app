@@ -115,8 +115,8 @@ const FlightCard = ({
             <p className="text-lg font-bold text-orange-600 transition-colors duration-200 group-hover:text-orange-500">
               {currencyFormatter("en-US", selectedCurrency, price)}
               {/* Uncomment if you want explicit pp label */}
-              <span className="text-xs font-normal text-stone-500
-              group-hover:text-stone-600 transition-colors duration-200"> pp</span>
+              <span className="text-xs font-normal text-stone-500 
+              group-hover:text-stone-600 transition-colors duration-200">/pp</span>
             </p>
             {totalPrice != null && (
               <p className="text-xs text-stone-500 group-hover:text-stone-600 transition-colors duration-200">
