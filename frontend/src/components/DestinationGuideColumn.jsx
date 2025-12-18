@@ -1,6 +1,7 @@
 import FlightCard from "./FlightCard";
 import InfoSectionCard from "./InfoSectionCard";
 import formatDate from "../utils/formatDate";
+import WeatherCard from "./WeatherCard";
 import { Sparkles, Info } from "lucide-react";
 
 
@@ -102,6 +103,7 @@ const DestinationGuideColumn = ({
     passengers,
     showHeader = true,
     isBestValue = false,
+    weather
 }) => {
     if (!guide) return null;
 
@@ -142,7 +144,7 @@ const DestinationGuideColumn = ({
     });
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 mt-4">
             {/* Destination header */}
             {showHeader && (
                 <div className="bg-gradient-to-r from-sky-100 via-orange-50 to-emerald-50 rounded-xl p-3 shadow-sm border border-amber-100">
@@ -205,7 +207,6 @@ const DestinationGuideColumn = ({
                 </div>
             )}
 
-
             {/* Flights */}
             {guide?.flights?.length > 0 && (
                 <section className="space-y-2">
@@ -229,6 +230,9 @@ const DestinationGuideColumn = ({
                     </div>
                 </section>
             )}
+
+            {/* Live weather */}
+            {weather && <WeatherCard weather={weather} />}
 
             {/* Hotels */}
             {guide.hotelInfo && (

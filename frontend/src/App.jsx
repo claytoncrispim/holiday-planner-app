@@ -203,6 +203,31 @@ const getCheapestFlightPrice = (guide) => {
   return min;
 };
 
+// --- WEATHER FETCH HELPER ---
+// Helper function to fetch weather forecast from backend
+const fetchWeatherForDestination = async (destinationName) => {
+    if (!destinationName) return null;
+
+    try {
+        const res = await fetch(
+            `http://localhost:8080/weather?destination=${encodeURIComponent(
+                destinationName
+            )}`
+        );
+
+        if (!res.ok) {
+            console.error("Weather API error:", res.status, await res.text());
+            return null;
+        }
+
+        const data = await res.json();
+        return data;
+    } catch (err) {
+        console.error("Weather fetch failed:", err);
+        return null;
+    }
+}
+
 // --- END OF HELPERS --- 
 
 
@@ -256,6 +281,13 @@ const App = () => {
     // --- Saved trips state ---
     const [savedTrips, setSavedTrips] = useState([]);
 
+    // --- Weather state ---
+    // Live weather for the primary destination
+    const [weatherPrimary, setWeatherPrimary] = useState(null);
+    // Live weather for the comparison destination (if any)
+    const [weatherSecondary, setWeatherSecondary] = useState(null);
+
+
     // **** END OF STATE VARIABLES ****
 
 
@@ -288,6 +320,43 @@ const App = () => {
             console.error("Error saving trips to localStorage:", err);
         }
     }, [savedTrips]);
+
+
+    // Fetch weather for the primary destination whenever the main guide changes
+    useEffect(() => {
+        const loadWeather = async () => {
+            if (!guideData || !guideData.destinationName) {
+                setWeatherPrimary(null);
+                return;
+            }
+
+            const data = await fetchWeatherForDestination(
+                guideData.destinationName
+            );
+            setWeatherPrimary(data);
+        };
+
+        loadWeather();
+    }, [guideData?.destinationName]);
+
+    // Fetch weather for the secondary destination in compare mode
+    useEffect(() => {
+        const loadWeatherSecondary = async () => { 
+            if (!guideDataSecondary || !guideDataSecondary.destinationName) {
+                setWeatherSecondary(null);
+                return;
+            }
+
+            const data = await fetchWeatherForDestination(
+                guideDataSecondary.destinationName
+            );
+
+            setWeatherSecondary(data);
+        };
+
+        loadWeatherSecondary();
+    }, [guideDataSecondary?.destinationName]);
+
 
     // **** END OF EFFECTS *****
 
@@ -568,6 +637,7 @@ const App = () => {
 
     // **** END OF HANDLER FUNCTIONS *****
 
+    // --- COMPUTE DERIVED VALUES ---
     // Compute the cheapest flight prices for display
     const cheapestA = getCheapestFlightPrice(guideData);
     const cheapestB = getCheapestFlightPrice(guideDataSecondary);
@@ -843,6 +913,7 @@ const App = () => {
                             selectedCurrency={selectedCurrency}
                             passengers={passengers}
                             showHeader={false}
+                            weather={weatherPrimary}
                         />
                     </section>
                     )}
@@ -880,6 +951,7 @@ const App = () => {
                                 selectedCurrency={selectedCurrency}
                                 passengers={passengers}
                                 isBestValue={isBestValueA}
+                                weather={weatherPrimary}
                             />
                             {/* Destination B */}
                             <DestinationGuideColumn
@@ -890,6 +962,7 @@ const App = () => {
                                 selectedCurrency={selectedCurrency}
                                 passengers={passengers}
                                 isBestValue={isBestValueB}
+                                weather={weatherSecondary}
                             />
                         </div>
                     </section>
