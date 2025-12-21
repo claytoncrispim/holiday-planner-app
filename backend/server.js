@@ -17,6 +17,7 @@ app.use(express.json());
 
 const PROJECT_ID = "holiday-planner-app-2";
 
+
 // --- WEATHER HELPERS (Open-Meteo) ---
 
 // Number checker
@@ -153,36 +154,63 @@ app.post("/generate-image", async (req, res) => {
   const { prompt } = req.body;
 
   try {
-    const auth = new GoogleAuth({
+    // Decide where to get service account credentials from
+    let authOptions;
+
+    if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+      // Render / production: credentials from env
+      let serviceAccount;
+      try {
+        serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+      } catch (parseErr) {
+        console.error("Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON:", parseErr);
+        throw new Error("SERVICE_ACCOUNT_JSON_PARSE_ERROR");
+      }
+
+      authOptions = {
+        credentials: serviceAccount,
+        projectId: serviceAccount.project_id || PROJECT_ID,
+        scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+      };
+
+      console.log("Using service account credentials from env.");
+    } else {
+      // Local dev: fall back to key file
+      authOptions = {
         keyFile: "./service-account.json",
-        scopes: "https://www.googleapis.com/auth/cloud-platform",
-    });
-  
+        scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+      };
+
+      console.log("Using local service-account.json key file.");
+    }
+
+    const auth = new GoogleAuth(authOptions);
     const client = await auth.getClient();
     const accessToken = await client.getAccessToken();
 
     const response = await fetch(
-        `https://us-central1-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/publishers/google/models/imagen-3.0-generate-002:predict`,
-        {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${accessToken.token}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                instances: [{ prompt }],
-                parameters: { sampleCount: 1},
-            }),
-        }
+      `https://us-central1-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/publishers/google/models/imagen-3.0-generate-002:predict`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          instances: [{ prompt }],
+          parameters: { sampleCount: 1 },
+        }),
+      }
     );
 
     const result = await response.json();
     res.json(result);
   } catch (err) {
-    console.error("Backend error:", err);
+    console.error("Imagen backend error:", err);
     res.status(500).json({ error: err.toString() });
   }
 });
+
 // Endpoint to generate travel guide using Google Gemini API
 app.post("/generate-guide", async (req, res) => {
   const { prompt } = req.body;
@@ -276,6 +304,6 @@ app.get("/weather", async (req, res) => {
 
 // Start the server
 app.listen(PORT, () => {
-    console.log(`Backend Imagen server running at ${PORT}`);
+    console.log(`Backend Imagen server running at http://localhost:${PORT}`);
 });
 
