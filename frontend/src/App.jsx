@@ -10,6 +10,11 @@ import DestinationGuideColumn from './components/DestinationGuideColumn';
 // Import of Formatters
 import formatDate from './utils/formatDate';
 
+// --- CONFIGURATION ---
+// Base URL for the backend API
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+
 
 // --- HELPERS ---
 
@@ -19,7 +24,7 @@ const callGemini = async (prompt) => {
     let response;
     try {
         response = await fetch(
-            "http://localhost:8080/generate-guide", {
+            `${API_BASE_URL}/generate-guide`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt }),
@@ -210,7 +215,7 @@ const fetchWeatherForDestination = async (destinationName) => {
 
     try {
         const res = await fetch(
-            `http://localhost:8080/weather?destination=${encodeURIComponent(
+            `${API_BASE_URL}/weather?destination=${encodeURIComponent(
                 destinationName
             )}`
         );
@@ -386,7 +391,7 @@ const App = () => {
         setImageUrl(null);
 
         try {
-            const response = await fetch("http://localhost:8080/generate-image", {
+            const response = await fetch(`${API_BASE_URL}/generate-image`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ prompt }),
@@ -502,7 +507,7 @@ const App = () => {
             // Custom network marker from callGemini
             if (err.message === "NETWORK_ERROR") {
                 userMessage =
-                    "I couldn’t reach the Holiday Planner server. Please check that it’s running on http://localhost:8080 and that your connection is OK.";
+                    `I couldn’t reach the Holiday Planner server. Please check that it’s running on ${API_BASE_URL} and that your connection is OK.`;
             }
             // JSON parse / unexpected format from backend
             else if (
