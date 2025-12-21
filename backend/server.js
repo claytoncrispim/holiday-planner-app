@@ -6,6 +6,7 @@ import { GoogleAuth } from "google-auth-library";
 import fetch from "node-fetch";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+const PORT = process.env.PORT || 8080;
 
 // Debugging log to confirm API key is loaded
 console.log("BACKEND API KEY:", GOOGLE_API_KEY);
@@ -274,7 +275,7 @@ app.get("/weather", async (req, res) => {
 });
 
 // Start the server
-app.listen(8080, () => {
-    console.log("Backend Imagen server running at http://localhost:8080");
+app.listen(PORT, () => {
+    console.log(`Backend Imagen server running at ${PORT}`);
 });
 
