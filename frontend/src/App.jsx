@@ -18,12 +18,58 @@ const API_BASE_URL =
 
 // --- HELPERS ---
 
+// --- RETRY HELPER FUNCTION ---
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fetchWithRetry(
+    url, 
+    options = {}, 
+    { retries = 2, delay = 4000 } = {}
+) {
+    let lastError;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const res = await fetch(url, options);
+
+            // If it's a "cold backend" style status, retry a couple of times
+            if (!res.ok && [502, 503, 504].includes(res.status) && attempt < retries) {
+                console.warn(
+                `Request to ${url} failed with status ${res.status}. Retrying in ${delay}ms... (Attempt ${
+                    attempt + 1
+                } of ${retries + 1})`
+                );
+                await sleep(delay);
+                continue;
+            }
+
+            // Return the response *even if* it's not ok.
+            // callGemini / other callers will inspect res.ok / res.status.
+            return res;
+            } catch (err) {
+            lastError = err;
+            console.warn(`Request to ${url} failed on attempt ${attempt}:`, err);
+
+            if (attempt < retries) {
+                await sleep(delay);
+                continue;
+            }
+
+            // All retries exhausted → propagate network error
+            throw lastError;
+            }
+        }
+
+        // Should never reach here, but just in case:
+        throw lastError || new Error("Unknown error in fetchWithRetry");
+        }
+
 // --- GEMINI API CALL FUNCTION ---
 // Helper function for Gemini initialization
 const callGemini = async (prompt) => {
     let response;
     try {
-        response = await fetch(
+        response = await fetchWithRetry(
             `${API_BASE_URL}/generate-guide`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -214,7 +260,7 @@ const fetchWeatherForDestination = async (destinationName) => {
     if (!destinationName) return null;
 
     try {
-        const res = await fetch(
+        const res = await fetchWithRetry(
             `${API_BASE_URL}/weather?destination=${encodeURIComponent(
                 destinationName
             )}`
@@ -391,7 +437,7 @@ const App = () => {
         setImageUrl(null);
 
         try {
-            const response = await fetch(`${API_BASE_URL}/generate-image`, {
+            const response = await fetchWithRetry(`${API_BASE_URL}/generate-image`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ prompt }),
@@ -507,7 +553,11 @@ const App = () => {
             // Custom network marker from callGemini
             if (err.message === "NETWORK_ERROR") {
                 userMessage =
-                    `I couldn’t reach the Holiday Planner server. Please check that it’s running on ${API_BASE_URL} and that your connection is OK.`;
+                    "Oops! I couldn’t reach the Holiday Planner server on the first try. " +
+                    "If this is your first request in a while, the server might be waking up. " +
+                    "Please wait a few seconds and try again.";
+
+                console.error("Please check if the server is running on " + API_BASE_URL + ". Network error details:", err.cause);
             }
             // JSON parse / unexpected format from backend
             else if (
