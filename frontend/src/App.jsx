@@ -136,6 +136,7 @@ const buildPrompt = ({
     nights,
     budgetLevel,
     selectedCurrency,
+    weatherSummary,
 }) => {
     // Detect if there are minors in the group
     const hasMinors = 
@@ -179,6 +180,13 @@ const buildPrompt = ({
         }.
         Budget level: ${budgetLevel || "not specified"
         } (low = budget-conscious, medium = balanced, high = comfort-focused).
+
+        ${
+            weatherSummary
+            ? `Real live-weather summary for these dates: ${weatherSummary}.
+            Use this when describing outdoor activities, packing tips (e.g. light layers vs. warm clothing), and whether it is better for sun-seeking, mild city exploring, or cooler escapes.`
+            : ""
+        }  
 
         Use the budget level when describing flight choices, hotels, and packages.
 
@@ -256,13 +264,13 @@ const getCheapestFlightPrice = (guide) => {
 
 // --- WEATHER FETCH HELPER ---
 // Helper function to fetch weather forecast from backend
-const fetchWeatherForDestination = async (destinationName) => {
-    if (!destinationName) return null;
+const fetchWeatherForDestination = async (destination) => {
+    if (!destination) return null;
 
     try {
         const res = await fetchWithRetry(
             `${API_BASE_URL}/weather?destination=${encodeURIComponent(
-                destinationName
+                destination
             )}`
         );
 
@@ -499,7 +507,39 @@ const App = () => {
             const destA = destination.trim();
             const destB = compareDestination.trim();
 
-            // Build prompt for primary destination
+            // --- Fetch live weather BEFORE calling Gemini ---
+            let weatherSummaryA = null;
+            let weatherSummaryB = null;
+
+            // Primary destination weather
+            try {
+                const weatherA = await fetchWeatherForDestination(destA);
+                if (weatherA && weatherA.found && weatherA.summary?.headline) {
+                    weatherSummaryA = weatherA.summary.headline;
+                }
+                // Update UI weather state immediately
+                setWeatherPrimary(weatherA);
+            } catch (err) {
+                console.error("Error fetching weather for primary destination:", err);
+                setWeatherPrimary(null);
+            }
+
+            // Comparison destination weather (if any)
+            if (destB) {
+                try {
+                    const weatherB = await fetchWeatherForDestination(destB);
+                    if (weatherB && weatherB.found && weatherB.summary?.headline) {
+                        weatherSummaryB = weatherB.summary.headline;
+                    }
+                    // Update UI weather state immediately
+                    setWeatherSecondary(weatherB);
+                } catch (err) {
+                    console.error("Error fetching weather for secondary destination:", err);
+                    setWeatherSecondary(null);
+                }
+            }
+
+            // --- Build prompt for primary destination ---
             const promptA = buildPrompt({
                 origin,
                 destination: destA,
@@ -509,6 +549,7 @@ const App = () => {
                 nights: tripNights,
                 budgetLevel,
                 selectedCurrency,
+                weatherSummary: weatherSummaryA,
             });
 
             // Always call for primary destination first
@@ -536,6 +577,7 @@ const App = () => {
                 nights: tripNights,
                 budgetLevel,
                 selectedCurrency,
+                weatherSummary: weatherSummaryB,
             });
 
             // Call for secondary destination
@@ -963,6 +1005,7 @@ const App = () => {
                         <DestinationGuideColumn
                             titlePrefix="Destination"
                             guide={guideData}
+                            origin={origin}
                             departureDate={departureDate}
                             returnDate={returnDate}
                             selectedCurrency={selectedCurrency}
@@ -1001,6 +1044,7 @@ const App = () => {
                             <DestinationGuideColumn
                                 titlePrefix="Option A"
                                 guide={guideData}
+                                origin={origin}
                                 departureDate={departureDate}
                                 returnDate={returnDate}
                                 selectedCurrency={selectedCurrency}
@@ -1012,6 +1056,7 @@ const App = () => {
                             <DestinationGuideColumn
                                 titlePrefix="Option B"
                                 guide={guideDataSecondary}
+                                origin={origin}
                                 departureDate={departureDate}
                                 returnDate={returnDate}
                                 selectedCurrency={selectedCurrency}

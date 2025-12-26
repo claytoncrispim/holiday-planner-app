@@ -97,6 +97,7 @@ const buildGooglePackagesUrl = ({
 const DestinationGuideColumn = ({
     titlePrefix,
     guide,
+    origin,
     departureDate,
     returnDate,
     selectedCurrency,
@@ -107,12 +108,11 @@ const DestinationGuideColumn = ({
 }) => {
     if (!guide) return null;
 
-    const totalPassengers = passengers
-        ? passengers.adults +
-          passengers.youngAdults +
-          passengers.children +
-          passengers.infants
-        : null;
+    const totalPassengers = 
+        (passengers?.adults ?? 0) +
+        (passengers?.youngAdults ?? 0) +
+        (passengers?.children ?? 0) +
+        (passengers?.infants ?? 0);
 
     // Calculate number if nights (if both dates are valid)
     let nights = null;
@@ -220,8 +220,8 @@ const DestinationGuideColumn = ({
                                 key={f.id || `${f.airline}-${f.flightNumber || idx}`}
                                 flight={f}
                                 selectedCurrency={selectedCurrency}
-                                originName={guide.originName}
-                                destinationName={guide.destinationName}
+                                originName={guide?.originName || origin || ""}
+                                destinationName={guide?.destinationName || ""} // From Gemini JSON data
                                 departureDate={departureDate}
                                 returnDate={returnDate}
                                 totalPassengers={totalPassengers}

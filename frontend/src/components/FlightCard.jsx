@@ -1,43 +1,6 @@
 import { Plane, ArrowRight } from "lucide-react";
 import currencyFormatter from "../utils/currencyFormatter";
-
-// --- HELPER ---
-// Helper to build Google Flights URL
-const buildGoogleFlightsUrl = ({ 
-    originName, 
-    destinationName, 
-    departureDate, 
-    returnDate,
-    totalPassengers,
-}) => {
-      // Fallback: if we’re missing critical info, just search by route text
-      if (!originName || !destinationName) {
-        const q = encodeURIComponent(
-          `Flights from ${originName || ""} to ${destinationName || ""}`
-        );
-        return `https://www.google.com/flights?q=${q}`;
-      }
-
-      let datePart = "";
-      if (departureDate && returnDate) {
-        datePart = `on ${departureDate} to ${returnDate}`;
-      } else if (departureDate) {
-        datePart = `on ${departureDate}`;
-      }
-
-      let paxPart = "";
-      if (typeof totalPassengers === "number" && totalPassengers > 0) {
-        paxPart = ` for ${totalPassengers} passenger${
-            totalPassengers > 1 ? "s" : ""
-        }`;
-      }
-
-      const query = `Flights from ${originName} to ${destinationName} ${datePart} ${paxPart}`;
-      const encoded = encodeURIComponent(query.trim());
-
-      return `https://www.google.com/flights?q=${encoded}`;
-  };
-  
+import { buildGoogleFlightsUrl } from "../utils/buildGoogleFlightsUrl";
 
 const FlightCard = ({ 
   flight, 
@@ -50,13 +13,22 @@ const FlightCard = ({
 }) => {
   if (!flight) return null;
 
-  const googleFlightsUrl = 
-  buildGoogleFlightsUrl({
+  console.log("FlightCard Google URL params:", {
     originName,
     destinationName,
     departureDate,
     returnDate,
     totalPassengers,
+  });
+
+
+  const googleFlightsUrl = buildGoogleFlightsUrl({
+    originName,
+    destinationName,
+    departureDate,
+    returnDate,
+    totalPassengers,
+    flight
   });
 
   // Support both older and newer field names from Gemini
@@ -161,8 +133,8 @@ const FlightCard = ({
       )}
 
       {/* Booking / search actions */}
-      <div className="flex flex-col items-end gap-0.5 mt-2">
-        <div className="flex gap-3">
+      <div className="flex items-center gap-2 sm:justify-end">
+        <div>
           {flight.bookingLink && (
             <a
               href={flight.bookingLink}
@@ -180,18 +152,41 @@ const FlightCard = ({
             target="_blank"
             rel="noopener noreferrer"
             className="
-            text-xs sm:text-sm font-semibold
-            text-sky-700
-            underline underline-offset-2
-            transition-colors duration-150
-            group-hover:text-sky-900"
+              text-xs sm:text-sm font-semibold
+              text-sky-700
+              underline underline-offset-2
+              transition-colors duration-150
+              group-hover:text-sky-900
+            "
           >
             Search on Google Flights
           </a>
+
+          
         </div>
         <span className="text-[10px] text-stone-400">
           Opens external site in a new tab
-        </span>
+        </span>          
+
+        {/* Tooltip trigger */}
+        <div className="relative group">
+          <button
+            type="button"
+            className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-sky-400 text-sky-600 text-[10px] font-bold leading-none bg-white/80 shadow-sm hover:bg-sky-50 focus:outline-none focus:ring-1 focus:ring-sky-400"
+            aria-label="How this Google Flights link works"
+            // title="We pre-fill your route, dates and travellers where possible. Google Flights may still adjust details based on your location and availability."
+          >
+            i
+          </button>
+
+          {/* Tooltip bubble */}
+          <div
+            className="pointer-events-none absolute z-20 hidden w-56 rounded-md bg-slate-900/95 px-3 py-2 text-[10px] text-slate-50 shadow-lg border border-slate-700 group-hover:block group-focus-within:block right-0 top-6"
+          >
+            We pre-fill your route, dates and travellers where possible.  
+            Google Flights may still adjust details based on your location and availability.
+          </div>
+        </div>
       </div>
     </article>
   );
