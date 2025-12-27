@@ -3,6 +3,32 @@
 import { useState } from "react";
 import PassengerSelector from "./PassengerSelector";
 
+// --- COMPONENT ---
+/**
+ * Search bar component for flight planning.
+ * 
+ * Props:
+ * - origin: Origin location string.
+ * - setOrigin: Function to update origin.
+ * - destination: Destination location string.
+ * - setDestination: Function to update destination.
+ * - compareDestination: Optional second destination for comparison.
+ * - setCompareDestination: Function to update compare destination.
+ * - departureDate: Departure date string.
+ * - setDepartureDate: Function to update departure date.
+ * - returnDate: Return date string.
+ * - setReturnDate: Function to update return date.
+ * - passengers: Object with passenger counts (adults, youngAdults, children, infants).
+ * - setPassengers: Function to update passenger counts.
+ * - budgetLevel: Selected budget level string.
+ * - setBudgetLevel: Function to update budget level.
+ * - handleGetGuide: Function to handle form submission.
+ * - loading: Boolean indicating if data is being loaded.
+ * 
+ * Returns:
+ * - JSX.Element: Rendered search bar component.
+ */
+
 const SearchBar = ({ 
     origin, 
     setOrigin, 
@@ -63,10 +89,10 @@ const SearchBar = ({
                 <div className="flex items-center justify-between mb-4">
                     <div>
                         <h2 className="text-lg md:text-xl font-semibold text-stone-800">
-                        Plan your escape ✈️
+                            Plan your escape ✈️
                         </h2>
                         <p className="text-xs md:text-sm text-stone-500">
-                        Choose your route, dates and who&apos;s coming along.
+                            Choose your route, dates and who&apos;s coming along.
                         </p>
                     </div>
                 </div>
@@ -79,7 +105,7 @@ const SearchBar = ({
                 {/* Origin */}
                 <div className="form-field">
                     <label className="block text-sm font-medium text-stone-700 mb-1">
-                    Origin
+                        Origin
                     </label>
                     <input
                     type="text"
@@ -93,7 +119,7 @@ const SearchBar = ({
                 {/* Destination */}
                 <div className="form-field">
                     <label className="block text-sm font-medium text-stone-700 mb-1">
-                    Destination A
+                        Destination A
                     </label>
                     <input
                     type="text"
@@ -124,7 +150,7 @@ const SearchBar = ({
                 {/* Departure Date */}
                 <div className="form-field">
                     <label className="block text-sm font-medium text-stone-700 mb-1">
-                    Departure date
+                        Departure date
                     </label>
                     <input
                     type="date"
@@ -137,7 +163,7 @@ const SearchBar = ({
                 {/* Return Date */}
                 <div className="form-field">
                     <label className="block text-sm font-medium text-stone-700 mb-1">
-                    Return date
+                        Return date
                     </label>
                     <input
                     type="date"
@@ -150,13 +176,13 @@ const SearchBar = ({
                 {/* Passengers */}
                 <div className="form-field passenger-field relative">
                     <label className="block text-sm font-medium text-stone-700 mb-1">
-                    Travellers
+                        Travellers
                     </label>
                     <button
                     type="button"
                     className="w-full p-3 rounded-lg border border-stone-200 text-left 
                                 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 
-                                outline-none transition text-base bg-white hover:border-amber-400"
+                                outline-none transition text-base hover:border-amber-400"
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                     >
                     {passengerSummary}

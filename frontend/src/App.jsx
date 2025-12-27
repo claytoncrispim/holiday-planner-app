@@ -787,7 +787,7 @@ const App = () => {
                             pointer-events-none
                             absolute inset-0
                             opacity-10
-                            sm:opacity-11
+                            sm:opacity-20
                             bg-cover bg-center
                             blur-sm
                         "

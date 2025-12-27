@@ -3,6 +3,7 @@ import InfoSectionCard from "./InfoSectionCard";
 import formatDate from "../utils/formatDate";
 import WeatherCard from "./WeatherCard";
 import { Sparkles, Info } from "lucide-react";
+import InfoTooltip from "../utils/InfoToolTip";
 
 
 // --- HELPERS ---
@@ -93,6 +94,11 @@ const buildGooglePackagesUrl = ({
  * - selectedCurrency: The selected currency code (e.g., "USD")
  * - passengers: An object with passenger counts (adults, youngAdults, children, infants)
  * - showHeader: Boolean to control header visibility (default: true)
+ * - isBestValue: Boolean to indicate if this destination is the best value (default: false)
+ * - weather: An object containing live weather data (optional)
+ *
+ * Returns:
+ * - JSX.Element: The rendered destination guide column component.
  */
 const DestinationGuideColumn = ({
     titlePrefix,
@@ -239,21 +245,24 @@ const DestinationGuideColumn = ({
                 <div className="space-y-2">
                     <InfoSectionCard title="Where to stay" emoji="🏨">
                         {guide.hotelInfo}
+                        <div className="mt-3 flex flex-col items-end gap-0.5">
+                            <a
+                                href={hotelsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs sm:text-sm font-semibold text-sky-700 hover:text-sky-900 underline"
+                            >
+                                Search hotels in {guide.destinationName}
+                            </a>
+                            <span className="text-[10px] text-stone-500">
+                                (Booking.com)
+                            </span>
+                            <InfoTooltip label="How the hotel search link works">
+                                We open a generic hotel search for {guide.destinationName}.  
+                                You can adjust dates, guests and filters directly on the booking site.
+                            </InfoTooltip>
+                        </div>
                     </InfoSectionCard>
-
-                    <div className="flex flex-col items-end">
-                        <a
-                            href={hotelsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs sm:text-sm font-semibold text-sky-700 hover:text-sky-900 underline"
-                        >
-                            Search hotels in {guide.destinationName}
-                        </a>
-                        <span className="mt-0.5 text-[10px] text-stone-400">
-                            Opens Google Hotels in a new tab
-                        </span>
-                    </div>
                 </div>
             )}
 
@@ -262,21 +271,25 @@ const DestinationGuideColumn = ({
                 <div className="space-y-2">
                     <InfoSectionCard title="Package deals" emoji="📦">
                         {guide.travelPackages}
-                    </InfoSectionCard>
-
-                    <div className="flex flex-col items-end">
-                        <a
-                            href={packagesUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs sm:text-sm font-semibold text-sky-700 hover:text-sky-900 underline"
-                        >
-                            Search package holidays
-                        </a>
-                        <span className="mt-0.5 text-[10px] text-stone-400">
-                            Opens Google Search in a new tab
-                        </span>
-                    </div>
+                        <div className="mt-3 flex flex-col items-end gap-0.5">
+                            <a
+                                href={packagesUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs sm:text-sm font-semibold text-sky-700 hover:text-sky-900 underline"
+                            >
+                                Search package holidays
+                            </a>
+                            <span className="text-[10px] text-stone-500">
+                                (External travel sites)
+                            </span>
+                            <InfoTooltip label="How the package search link works">
+                                We send you to a search page for package holidays in{" "}
+                                {guide.destinationName}.  
+                                Results and availability depend on each travel provider.
+                            </InfoTooltip> 
+                        </div>
+                    </InfoSectionCard>               
                 </div>
             )}
 

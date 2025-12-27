@@ -2,6 +2,23 @@ import { Plane, ArrowRight } from "lucide-react";
 import currencyFormatter from "../utils/currencyFormatter";
 import { buildGoogleFlightsUrl } from "../utils/buildGoogleFlightsUrl";
 
+// --- COMPONENT ---
+/**
+ * Flight card component to display flight details.
+ * 
+ * Props:
+ * - flight: Flight data object.
+ * - selectedCurrency: Currency code for price display.
+ * - originName: Name of the origin location.
+ * - destinationName: Name of the destination location.
+ * - departureDate: Departure date string.
+ * - returnDate: Return date string.
+ * - totalPassengers: Total number of passengers.
+ * 
+ * Returns:
+ * - JSX.Element: Rendered flight card component.
+ */
+
 const FlightCard = ({ 
   flight, 
   selectedCurrency,
