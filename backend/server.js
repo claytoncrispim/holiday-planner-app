@@ -17,9 +17,56 @@ app.use(express.json());
 
 const PROJECT_ID = "holiday-planner-app-2";
 
+// --- AMADEUS config ---
+const AMADEUS_API_KEY = process.env.AMADEUS_API_KEY;
+const AMADEUS_API_SECRET = process.env.AMADEUS_API_SECRET;
+
+let amadeusToken = null;
+let amadeusTokenExpiresAt = 0; // epoch time in ms
+
+// Function to get Amadeus access token
+async function getAmadeusToken() {
+  if (!AMADEUS_API_KEY || !AMADEUS_API_SECRET) {
+    throw new Error("Amadeus API key/secret are not configured");
+  }
+
+  const now = Date.now();
+
+  // Re-use token if it's still valid (with 60s safety margin)
+  if (amadeusToken && now < amadeusTokenExpiresAt - 60_000) {
+    return amadeusToken;
+  }
+
+  const tokenRes = await fetch(
+    "https://test.api.amadeus.com/v1/security/oauth2/token",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+    },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: AMADEUS_API_KEY,
+        client_secret: AMADEUS_API_SECRET,
+      }),
+    }
+  );
+  
+  const tokenData = await tokenRes.json();
+
+  if (!tokenRes.ok) {
+    console.error("Amadeus token error:", tokenData);
+    throw new Error("Failed to get Amadeus access token");
+  }
+  
+  amadeusToken = tokenData.access_token;
+  amadeusTokenExpiresAt = now + (tokenData.expires_in * 1000);
+
+  return amadeusToken;
+}
+
 
 // --- WEATHER HELPERS (Open-Meteo) ---
-
 // Number checker
 const isNumber = (n) => typeof n === "number" && !isNaN(n);
 
@@ -299,6 +346,97 @@ app.get("/weather", async (req, res) => {
       message: 
         "We had trouble fetching live weather data for this destination.",
     });
+  }
+});
+
+// --- REAL-FLIGHTS ROUTE ---
+app.get("/real-flights", async (req, res) => {
+  const {
+    origin,
+    destination,
+    departureDate,
+    returnDate,
+    adults = "1",
+  } = req.query;
+
+  if (!origin || !destination || !departureDate) {
+    return res.status(400).json({
+      error: "Missing required query parameters. Need origin, destination, and departureDate.",
+    });
+  }
+
+  try {
+    const token = await getAmadeusToken();
+
+    const params = new URLSearchParams({
+      originLocationCode: origin,
+      destinationLocationCode: destination,
+      departureDate,
+      adults: String(adults),
+      currencyCode: "EUR",
+      max: "6",
+    });
+
+    if (returnDate) {
+      params.set("returnDate", returnDate);
+    }
+
+    const apiUrl = `https://test.api.amadeus.com/v2/shopping/flight-offers?${params.toString()}`;
+
+    const amadeusRes = await fetch(apiUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const amadeusData = await amadeusRes.json();
+
+    if (!amadeusRes.ok) {
+      console.error("Amadeus search error:", amadeusData);
+      return res.status(500).json({
+        error: "Failed to fetch flight offers from Amadeus",
+        details: amadeusData,
+      });
+    }
+      
+    // Map Amadeus structure: simplified objects that the UI can handle
+    const offers = 
+      amadeusData.data?.map((offer, idx) => {
+        const firstItin = offer.itineraries?.[0];
+        if (!firstItin) return null;
+
+        const segments = firstItin.segments || [];
+        if (!segments.length) return null;
+
+        const firstSeg = segments[0];
+        const lastSeg = segments[segments.length - 1];
+        
+        return {
+          id: offer.id || `amadeus-${idx}`,
+          provider: "amadeus",
+          airlineCode: firstSeg.carrierCode,
+          flightNumber: firstSeg.number,
+          departureAirport: firstSeg.departure?.iataCode,
+          arrivalAirport: lastSeg.arrival?.iataCode,
+          departureTime: firstSeg.departure?.at,
+          arrivalTime: lastSeg.arrival?.at,
+          duration: firstItin.duration, // ISO 8601 duration, e.g. "PT2H30M"
+          stops: Math.max(0, segments.length - 1),
+          price: Number(offer.price?.total) || 0,
+          currency: offer.price?.currency || "EUR",
+        };
+      })
+      .filter(Boolean)// remove nulls
+      .slice(0, 6) || []; // limit to 6 offers max or empty array
+
+    return res.json({ offers });
+  } catch (err) {
+    console.error("Real flights route error:", err);
+    return res
+      .status(500)
+      .json({ 
+        error: "Internal error searching real flights" 
+      });
   }
 });
 
