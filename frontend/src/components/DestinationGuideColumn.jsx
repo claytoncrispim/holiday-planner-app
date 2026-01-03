@@ -4,7 +4,7 @@ import formatDate from "../utils/formatDate";
 import WeatherCard from "./WeatherCard";
 import { Sparkles, Info } from "lucide-react";
 import InfoTooltip from "../utils/InfoToolTip";
-
+import currencyFormatter from "../utils/currencyFormatter";
 
 // --- HELPERS ---
 // Helper to build a Google Hotel search URL
@@ -110,7 +110,8 @@ const DestinationGuideColumn = ({
     passengers,
     showHeader = true,
     isBestValue = false,
-    weather
+    weather,
+    realFlights = [],
 }) => {
     if (!guide) return null;
 
@@ -213,7 +214,7 @@ const DestinationGuideColumn = ({
                 </div>
             )}
 
-            {/* Flights */}
+            {/* Flights from Gemini*/}
             {guide?.flights?.length > 0 && (
                 <section className="space-y-2">
                     <h4 className="text-sm font-semibold text-stone-800">
@@ -234,6 +235,58 @@ const DestinationGuideColumn = ({
                             />
                         ))}
                     </div>
+                </section>
+            )}
+
+            {/* Live prices (beta) from real API */}
+            {realFlights && realFlights.length > 0 && (
+                <section className="space-y-1">
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-semibold text-sky-900 uppercase tracking-wide">
+                            🔥 Live prices (beta)
+                        </h4>
+                        <span className="text-[10px] text-sky-700">
+                            From real flight API
+                        </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        {realFlights.slice(0, 3).map((offer) => (
+                            <div
+                                key={offer.id || `${offer.carrierCode}-${offer.flightNumber}-${offer.price}`}
+                                className="flex items-center justify-between rounded-lg bg-sky-50/70 border border-sky-100 px-3 py-2 text-xs text-stone-800"
+                            >
+                                <div className="flex flex-col">
+                                    <span className="font-semibold">
+                                        {
+                                            offer.airlineName || 
+                                            offer.airlineCode ||
+                                            offer.carrierCode || 
+                                            "Flight"
+                                        }
+                                    </span>
+                                    {offer.origin && offer.destination && (
+                                        <span className="text-[11px] text-stone-600">
+                                            {offer.origin} → {offer.destination}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-sm font-bold text-orange-600">
+                                        {currencyFormatter(
+                                            "en-US",
+                                            selectedCurrency,
+                                            offer.price
+                                        )}
+                                    </span>
+                                    </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <p className="text-[10px] text-stone-500">
+                        Snapshot only - tap a flight above and use "Search on Google Flights" for full availability and options.
+                    </p>
                 </section>
             )}
 

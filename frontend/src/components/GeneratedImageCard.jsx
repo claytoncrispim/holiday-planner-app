@@ -1,6 +1,20 @@
 import { Image as ImageIcon, MapPin } from "lucide-react";
 import formatDate from "../utils/formatDate";
 
+// --- UI Component: Generated Image Card  ---
+/**
+ * A card component to display a generated image of a travel destination.
+ * 
+ * Props:
+ * - imageUrl: URL of the generated image (string)
+ * - destinationName: name of the destination (string)
+ * - originName: name of the origin location (string)
+ * - departureDate: departure date (Date object or string)
+ * - returnDate: return date (Date object or string)
+ * 
+ * Returns:
+ * - JSX element rendering the generated image card
+ */
 const GeneratedImageCard = ({
   imageUrl,
   destinationName,

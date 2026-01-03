@@ -4,6 +4,16 @@ import { Globe2 } from "lucide-react";
 
 
 // --- UI Component: Currency Dropdown Selector  ---
+/**
+ * A dropdown selector for choosing a currency.
+ * 
+ * Props:
+ * - selectedCurrency: currently selected currency code (string)
+ * - onCurrencyChange: callback function when currency changes (function)
+ * 
+ * Returns:
+ * - JSX element rendering the currency selector
+ */
 const CurrencySelector = ({ selectedCurrency, onCurrencyChange }) => {
     const [currencies, setCurrencies] = useState([]);
     const [isLoading, setIsLoading] = useState(true);

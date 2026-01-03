@@ -9,6 +9,7 @@ import SavedTripsPanel from "./components/SavedTripsPanel";
 import DestinationGuideColumn from './components/DestinationGuideColumn';
 // Import of Formatters
 import formatDate from './utils/formatDate';
+import toIsoDate from './utils/toIsoDate';
 
 // --- CONFIGURATION ---
 // Base URL for the backend API
@@ -346,6 +347,9 @@ const App = () => {
     // Live weather for the comparison destination (if any)
     const [weatherSecondary, setWeatherSecondary] = useState(null);
 
+    // --- Real flight offers (Live API)
+    const [realFlightsPrimary, setRealFlightsPrimary] = useState([]);
+
 
     // **** END OF STATE VARIABLES ****
 
@@ -556,6 +560,72 @@ const App = () => {
             const primaryResponse = await callGemini(promptA);
             console.log("Primary Gemini response:", primaryResponse);
             setGuideData(primaryResponse);
+
+
+            // --- Fetch real flight offers for primary destination ---
+            try {
+                // 1. Compute  total passengers
+                const totalPassengers =
+                    (passengers.adults ?? 0) +
+                    (passengers.youngAdults ?? 0) +
+                    (passengers.children ?? 0) +
+                    (passengers.infants ?? 0);
+
+                // 2. Prepare params for the ral flights endpoint
+                const originCode = origin.trim().toUpperCase();
+                const destinationCode = destination.trim().toUpperCase();
+                const departureISO = toIsoDate(departureDate);
+                const returnISO = toIsoDate(returnDate);
+
+                // Only hit the API if origin/destination look like IATA codes (3 letters)
+                const iataRegex = /^[A-Z]{3}$/;
+
+                if (
+                    iataRegex.test(originCode) &&
+                    iataRegex.test(destinationCode) &&
+                    departureISO
+                ) {
+                    const queryParams = new URLSearchParams({
+                        origin: originCode,
+                        destination: destinationCode,
+                        departureDate: departureISO,
+                        adults: String(totalPassengers || 1),
+                    });
+
+                    if (returnISO) {
+                        queryParams.set("returnDate", returnISO);
+                    }
+
+                    const realFlightResponse = await fetchWithRetry(
+                        `${API_BASE_URL}/real-flights?${queryParams.toString()}`
+                        );
+
+                        // IMPORTANT: parse JSON
+                        const realFlightsJson = await realFlightResponse.json();
+
+                        // DEBUG LOG
+                        console.log("Real flights JSON (primary):", realFlightsJson);
+
+                        // Extract offers safely
+                        let offers = [];
+                        if (Array.isArray(realFlightsJson.offers)) {
+                        offers = realFlightsJson.offers;
+                        } else if (Array.isArray(realFlightsJson.data)) {
+                        offers = realFlightsJson.data;
+                        }
+
+                        // Push into state (or empty if nothing valid)
+                        setRealFlightsPrimary(offers);
+
+                    } else {
+                        // If they typed city names instead of IATA codes, just clear live prices
+                        setRealFlightsPrimary([]);
+                    }
+                } catch (err) {
+                    console.error("Real flights fetch failed:", err);
+                    setRealFlightsPrimary([]);
+                }
+
 
             // Generate image based on primary suggestion
             if (primaryResponse.imageGenPrompt) {
@@ -1001,7 +1071,7 @@ const App = () => {
                         {/* Flights, hotels, comparison using the previous cards */}
                         {/* You can keep the old structure here or use DestinationGuideColumn for consistency */}
 
-                        {/* Single Destination Guide Column */}                                        
+                        {/* SINGLE DESTINATION Guide Column */}                                        
                         <DestinationGuideColumn
                             titlePrefix="Destination"
                             guide={guideData}
@@ -1012,6 +1082,7 @@ const App = () => {
                             passengers={passengers}
                             showHeader={false}
                             weather={weatherPrimary}
+                            realFlights={realFlightsPrimary}
                         />
                     </section>
                     )}
