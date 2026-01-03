@@ -349,6 +349,7 @@ const App = () => {
 
     // --- Real flight offers (Live API)
     const [realFlightsPrimary, setRealFlightsPrimary] = useState([]);
+    const [realFlightsCompare, setRealFlightsCompare] = useState([]);
 
 
     // **** END OF STATE VARIABLES ****
@@ -493,6 +494,8 @@ const App = () => {
         setGuideData(null);
         setGuideDataSecondary(null);
         setImageUrl(null);
+        setRealFlightsPrimary([]);
+        setRealFlightsCompare([]);
 
         try {
             // Compute trip nights if both dates are provided
@@ -561,8 +564,8 @@ const App = () => {
             console.log("Primary Gemini response:", primaryResponse);
             setGuideData(primaryResponse);
 
-
-            // --- Fetch real flight offers for primary destination ---
+            // --- REAL FLIGHTS FETCH ---
+            // Real flights for primary destination
             try {
                 // 1. Compute  total passengers
                 const totalPassengers =
@@ -624,6 +627,61 @@ const App = () => {
                 } catch (err) {
                     console.error("Real flights fetch failed:", err);
                     setRealFlightsPrimary([]);
+                }
+
+            // Live prices for comparison destination (Option B)
+            try {
+                if (hasComparison) {
+                    const totalPassengers =
+                    (passengers.adults ?? 0) +
+                    (passengers.youngAdults ?? 0) +
+                    (passengers.children ?? 0) +
+                    (passengers.infants ?? 0);
+
+                    const originCode = origin.trim().toUpperCase();
+                    const compareCode = compareDestination.trim().toUpperCase();
+                    const departureISO = toIsoDate(departureDate);
+                    const returnISO = toIsoDate(returnDate);
+                    const iataRegex = /^[A-Z]{3}$/;
+
+                    if (
+                    iataRegex.test(originCode) &&
+                    iataRegex.test(compareCode) &&
+                    departureISO
+                    ) {
+                    const queryParamsB = new URLSearchParams({
+                        origin: originCode,
+                        destination: compareCode,
+                        departureDate: departureISO,
+                        adults: String(totalPassengers || 1),
+                    });
+                    if (returnISO) queryParamsB.set("returnDate", returnISO);
+
+                    const realFlightResponseB = await fetchWithRetry(
+                        `${API_BASE_URL}/real-flights?${queryParamsB.toString()}`
+                    );
+
+                    const realFlightsJsonB = await realFlightResponseB.json();
+                    console.log("Real flights JSON (compare):", realFlightsJsonB);
+
+                    let offersB = [];
+                    if (Array.isArray(realFlightsJsonB.offers)) {
+                        offersB = realFlightsJsonB.offers;
+                    } else if (Array.isArray(realFlightsJsonB.data)) {
+                        offersB = realFlightsJsonB.data;
+                    }
+
+                    setRealFlightsCompare(offersB);
+                    } else {
+                    setRealFlightsCompare([]);
+                    }
+                } else {
+                    // no compare destination, make sure column B is empty
+                    setRealFlightsCompare([]);
+                }
+                } catch (err) {
+                console.error("Real flights fetch failed (compare):", err);
+                setRealFlightsCompare([]);
                 }
 
 
@@ -803,6 +861,10 @@ const App = () => {
     };
 
     // **** END OF HANDLER FUNCTIONS *****
+
+    // Compute if comparison mode is active - Result has to be strictly a Boolean
+    const hasComparison =
+        !!(compareDestination && compareDestination.trim().length > 0);
 
     // --- COMPUTE DERIVED VALUES ---
     // Compute the cheapest flight prices for display
@@ -1122,6 +1184,7 @@ const App = () => {
                                 passengers={passengers}
                                 isBestValue={isBestValueA}
                                 weather={weatherPrimary}
+                                realFlights={realFlightsPrimary}
                             />
                             {/* Destination B */}
                             <DestinationGuideColumn
@@ -1134,12 +1197,11 @@ const App = () => {
                                 passengers={passengers}
                                 isBestValue={isBestValueB}
                                 weather={weatherSecondary}
+                                realFlights={realFlightsCompare}
                             />
                         </div>
                     </section>
                     )}
-
-
 
                     {/* IMAGE LOADING SPINNER */}
                     {isImageLoading && (
