@@ -4,7 +4,11 @@ import express from "express";
 import cors from "cors";
 import { GoogleAuth } from "google-auth-library";
 import fetch from "node-fetch";
+import resolveToIATA from "./utils/resolveToIATA.js";
+import getAmadeusToken from "./utils/getAmadeusToken.js";
+import fetchWeatherForecast from "./utils/fetchWeatherForecast.js";
 
+// Load config from .env
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const PORT = process.env.PORT || 8080;
 
@@ -16,184 +20,6 @@ app.use(cors());
 app.use(express.json());
 
 const PROJECT_ID = "holiday-planner-app-2";
-
-// --- AMADEUS config ---
-const AMADEUS_API_KEY = process.env.AMADEUS_API_KEY;
-const AMADEUS_API_SECRET = process.env.AMADEUS_API_SECRET;
-
-let amadeusToken = null;
-let amadeusTokenExpiresAt = 0; // epoch time in ms
-
-// Function to get Amadeus access token
-async function getAmadeusToken() {
-  if (!AMADEUS_API_KEY || !AMADEUS_API_SECRET) {
-    throw new Error("Amadeus API key/secret are not configured");
-  }
-
-  const now = Date.now();
-
-  // Re-use token if it's still valid (with 60s safety margin)
-  if (amadeusToken && now < amadeusTokenExpiresAt - 60_000) {
-    return amadeusToken;
-  }
-
-  const tokenRes = await fetch(
-    "https://test.api.amadeus.com/v1/security/oauth2/token",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-    },
-      body: new URLSearchParams({
-        grant_type: "client_credentials",
-        client_id: AMADEUS_API_KEY,
-        client_secret: AMADEUS_API_SECRET,
-      }),
-    }
-  );
-  
-  const tokenData = await tokenRes.json();
-
-  if (!tokenRes.ok) {
-    console.error("Amadeus token error:", tokenData);
-    throw new Error("Failed to get Amadeus access token");
-  }
-  
-  amadeusToken = tokenData.access_token;
-  amadeusTokenExpiresAt = now + (tokenData.expires_in * 1000);
-
-  return amadeusToken;
-}
-
-
-// --- WEATHER HELPERS (Open-Meteo) ---
-// Number checker
-const isNumber = (n) => typeof n === "number" && !isNaN(n);
-
-async function fetchWeatherForecast(cityName) {
-  if (!cityName) {
-    throw new Error("DESTINATION_REQUIRED");
-  }
-
-  // 1. Geocode the city name to get latitude and longitude
-  const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
-    cityName
-  )}&count=1&language=en&format=json`;
-
-  const geoRes = await fetch(geoUrl);
-  if (!geoRes.ok) {
-    throw new Error(`GEOCODING_FAILED${geoRes.status || "UNKNOWN_STATUS"}`
-    );
-  }
-
-  const geoData = await geoRes.json();
-  const place = geoData.results?.[0];
-
-  if (!place) {
-    // No match found for the city
-    return {
-      found: false,
-      message: `Could not find weather location for "${cityName}".`,
-    };
-  }
-
-  const {
-    latitude,
-    longitude,
-    name,
-    country,
-    timezone,
-  } = place;
-
-   // 2. Get a 7-day daily forecast for that location
-  const forecastUrl =
-    `https://api.open-meteo.com/v1/forecast` +
-    `?latitude=${latitude}` +
-    `&longitude=${longitude}` +
-    `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum` +
-    `&timezone=auto` +
-    `&forecast_days=7`;
-
-  const forecastRes = await fetch(forecastUrl);
-  if (!forecastRes.ok) {
-    throw new Error(
-      `FORECAST_FAILED${forecastRes.status || "UNKNOWN_STATUS"}`
-    );
-  }
-
-  const forecastData = await forecastRes.json();
-  const daily = forecastData.daily;
-
-  if (
-    !daily ||
-    !Array.isArray(daily.time) ||
-    !Array.isArray(daily.temperature_2m_max)
-  ) {
-    throw new Error("FORECAST_UNEXPECTED_SHAPE");
-  }
-
-  // 3. Build a small, friendly summary object
-  const days = daily.time.map((date, idx) => ({
-    date,
-    tempMax: daily.temperature_2m_max[idx],
-    tempMin: daily.temperature_2m_min[idx],
-    precipitationSum: daily.precipitation_sum[idx],
-  }));
-
-  // Compute some simple stats for a headline
-  let sumMax = 0;
-  let sumMin = 0;
-  let sumRain = 0;
-  let count = 0;
-
-  for (const d of days) {
-    if (isNumber(d.tempMax) && isNumber(d.tempMin)) {
-      sumMax += d.tempMax;
-      sumMin += d.tempMin;
-      count+= 1;
-    }
-    if (isNumber(d.precipitationSum)) {
-      sumRain += d.precipitationSum;
-    }
-  }
-
-  const avgMax = count > 0 ? sumMax / count : null;
-  const avgMin = count > 0 ? sumMin / count : null;
-
-  // Tiny heuristic for a 1-line description
-  let headline = "Mixed conditions";
-
-  if (avgMax !== null && avgMin !== null) {
-    if (avgMax >= 25 && sumRain < 5) {
-      headline = "Warm and mostly dry – great beach or pool weather.";
-    } else if (avgMax >= 20 && sumRain < 10) {
-      headline = "Mild and generally pleasant with only light rain.";
-    } else if (avgMax < 10) {
-      headline = "Chilly overall – pack layers and a warm jacket.";
-    } else if (sumRain >= 15) {
-      headline = "Expect a fair bit of rain – an umbrella is a good idea.";
-    }
-  }
-
-  return {
-    found: true,
-    provider: "Open-Meteo",
-    location: {
-      name,
-      country,
-      latitude,
-      longitude,
-      timezone,
-    },
-    summary: {
-      headline,
-      avgMax,
-      avgMin,
-      totalPrecipitation: sumRain,
-    },
-    daily: days,
-  };
-}
 
 // --- GOOGLE API ROUTES ---
 // Endpoint to generate image using Google Imagen API
@@ -258,6 +84,7 @@ app.post("/generate-image", async (req, res) => {
   }
 });
 
+// --- GENERATE GUIDE ROUTE ---
 // Endpoint to generate travel guide using Google Gemini API
 app.post("/generate-guide", async (req, res) => {
   const { prompt } = req.body;
@@ -437,6 +264,32 @@ app.get("/real-flights", async (req, res) => {
       .json({ 
         error: "Internal error searching real flights" 
       });
+  }
+});
+
+// --- Airport resolution API ---
+// GET /resolve-airports?origin=...&destination=...&compare=...
+app.get("/resolve-airports", async (req, res) => {
+  const { origin, destination, compare } = req.query;
+
+  try {
+    const [originResolved, destinationResolved, compareResolved] =
+      await Promise.all([
+        resolveToIATA(origin),
+        resolveToIATA(destination),
+        compare ? resolveToIATA(compare) : Promise.resolve(null),
+      ]);
+
+    res.json({
+      origin: originResolved,
+      destination: destinationResolved,
+      compare: compareResolved,
+    });
+  } catch (err) {
+    console.error("resolve-airports error:", err);
+    res
+      .status(500)
+      .json({ error: "Failed to resolve airports", details: err.toString() });
   }
 });
 

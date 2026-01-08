@@ -9,13 +9,12 @@ import SavedTripsPanel from "./components/SavedTripsPanel";
 import DestinationGuideColumn from './components/DestinationGuideColumn';
 // Import of Formatters
 import formatDate from './utils/formatDate';
-import toIsoDate from './utils/toIsoDate';
+
 
 // --- CONFIGURATION ---
 // Base URL for the backend API
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
-
 
 // --- HELPERS ---
 
@@ -288,6 +287,62 @@ const fetchWeatherForDestination = async (destination) => {
     }
 }
 
+
+// --- REAL FLIGHTS HELPERS ---
+// AIRPORT RESOLUTION HELPER: Helper function to resolve airport codes to city names
+async function resolveAirports({
+    origin,
+    destination,
+    compareDestination,
+    API_BASE_URL,
+}) {
+    const resolveUrl = new URL(`${API_BASE_URL}/resolve-airports`);
+
+    if (origin) resolveUrl.searchParams.set("origin", origin);  
+    if (destination) resolveUrl.searchParams.set("destination", destination);
+    if (compareDestination) resolveUrl.searchParams.set("compare", compareDestination);
+
+    const res  = await fetch(resolveUrl.toString());
+    if (!res.ok) {
+        throw new Error(`resolve-airports failed with status ${res.status}`);
+    }
+
+    const resolved = await res.json();
+    console.log("Resolved airports:", resolved);
+
+    return {
+        originIata: resolved.origin?.iataCode ?? null,
+        destinationIata: resolved.destination?.iataCode ?? null,
+        compareIata: resolved.compare?.iataCode ?? null,
+        raw: resolved,
+    };
+}
+// REALFLIGHTS FETCHER HELPER: Help function to fetch real flight offers
+async function fetchRealFlights({
+  originIata,
+  destinationIata,
+  departureDate,
+  returnDate,
+  passengers,
+}) {
+  const url = new URL(`${API_BASE_URL}/real-flights`);
+  url.searchParams.set("origin", originIata);
+  url.searchParams.set("destination", destinationIata);
+  url.searchParams.set("departureDate", departureDate);
+  url.searchParams.set("returnDate", returnDate);
+  url.searchParams.set("adults", String(passengers));
+
+  const res = await fetch(url.toString());
+
+  if (!res.ok) {
+    throw new Error(`real-flights error: ${res.status}`);
+  }
+
+  const json = await res.json();
+  return json; // { offers: [...] }
+}
+
+
 // --- END OF HELPERS --- 
 
 
@@ -349,7 +404,7 @@ const App = () => {
 
     // --- Real flight offers (Live API)
     const [realFlightsPrimary, setRealFlightsPrimary] = useState([]);
-    const [realFlightsCompare, setRealFlightsCompare] = useState([]);
+    const [realFlightsSecondary, setRealFlightsSecondary] = useState([]);
 
 
     // **** END OF STATE VARIABLES ****
@@ -495,7 +550,7 @@ const App = () => {
         setGuideDataSecondary(null);
         setImageUrl(null);
         setRealFlightsPrimary([]);
-        setRealFlightsCompare([]);
+        setRealFlightsSecondary([]);
 
         try {
             // Compute trip nights if both dates are provided
@@ -546,6 +601,84 @@ const App = () => {
                 }
             }
 
+            // --- REAL FLIGHTS FETCH ---
+            // Reset previous real flight results
+            setRealFlightsPrimary([]);
+            setRealFlightsSecondary([]);
+
+            // --- 1) Resolve airports via backend ---
+            let originIata = null;
+            let destinationIata = null;
+            let compareIata = null;
+
+            try {
+                const { originIata: oIata, destinationIata: dIata, compareIata: cIata, raw } =
+                    await resolveAirports({
+                    origin,                 // you can keep raw origin here
+                    destination: destA,     // trimmed destination
+                    compareDestination: destB,
+                    API_BASE_URL,
+                    });
+
+                console.log("Resolved airports (frontend):", raw);
+
+                originIata = oIata;
+                destinationIata = dIata;
+                compareIata = cIata;
+            } catch (err) {
+                console.error("resolve-airports failed, skipping real flights:", err);
+            }
+
+            // Compute total passengers once
+            const totalPassengers =
+            passengers.adults +
+            passengers.youngAdults +
+            passengers.children +
+            passengers.infants;
+
+            // --- 2) Call real-flights for primary destination (if we have IATA codes) ---
+            let primaryOffers = [];
+            if (originIata && destinationIata) {
+                try {
+                    const realJson = await fetchRealFlights({
+                    originIata,
+                    destinationIata,
+                    departureDate,
+                    returnDate,
+                    passengers: totalPassengers,
+                    });
+                    primaryOffers = realJson.offers || [];
+                    console.log("Real flights JSON (primary):", realJson);
+                } catch (err) {
+                    console.error("Real flights (primary) failed:", err);
+                }
+            }
+
+            // --- 3) Call real-flights for compare destination, if applicable ---
+            let secondaryOffers = [];
+            const hasComparison = !!destB;
+
+            if (hasComparison && originIata && compareIata) {
+            try {
+                const realJson = await fetchRealFlights({
+                originIata,
+                destinationIata: compareIata,
+                departureDate,
+                returnDate,
+                passengers: totalPassengers,
+                });
+                secondaryOffers = realJson.offers || [];
+                console.log("Real flights JSON (secondary):", realJson);
+            } catch (err) {
+                console.error("Real flights (secondary) failed:", err);
+            }
+            }
+
+            // --- 4) Push into state so UI can render ---
+            setRealFlightsPrimary(primaryOffers);
+            setRealFlightsSecondary(secondaryOffers);
+
+
             // --- Build prompt for primary destination ---
             const promptA = buildPrompt({
                 origin,
@@ -562,129 +695,10 @@ const App = () => {
             // Always call for primary destination first
             const primaryResponse = await callGemini(promptA);
             console.log("Primary Gemini response:", primaryResponse);
-            setGuideData(primaryResponse);
+            setGuideData(primaryResponse); 
+            
 
-            // --- REAL FLIGHTS FETCH ---
-            // Real flights for primary destination
-            try {
-                // 1. Compute  total passengers
-                const totalPassengers =
-                    (passengers.adults ?? 0) +
-                    (passengers.youngAdults ?? 0) +
-                    (passengers.children ?? 0) +
-                    (passengers.infants ?? 0);
-
-                // 2. Prepare params for the ral flights endpoint
-                const originCode = origin.trim().toUpperCase();
-                const destinationCode = destination.trim().toUpperCase();
-                const departureISO = toIsoDate(departureDate);
-                const returnISO = toIsoDate(returnDate);
-
-                // Only hit the API if origin/destination look like IATA codes (3 letters)
-                const iataRegex = /^[A-Z]{3}$/;
-
-                if (
-                    iataRegex.test(originCode) &&
-                    iataRegex.test(destinationCode) &&
-                    departureISO
-                ) {
-                    const queryParams = new URLSearchParams({
-                        origin: originCode,
-                        destination: destinationCode,
-                        departureDate: departureISO,
-                        adults: String(totalPassengers || 1),
-                    });
-
-                    if (returnISO) {
-                        queryParams.set("returnDate", returnISO);
-                    }
-
-                    const realFlightResponse = await fetchWithRetry(
-                        `${API_BASE_URL}/real-flights?${queryParams.toString()}`
-                        );
-
-                        // IMPORTANT: parse JSON
-                        const realFlightsJson = await realFlightResponse.json();
-
-                        // DEBUG LOG
-                        console.log("Real flights JSON (primary):", realFlightsJson);
-
-                        // Extract offers safely
-                        let offers = [];
-                        if (Array.isArray(realFlightsJson.offers)) {
-                        offers = realFlightsJson.offers;
-                        } else if (Array.isArray(realFlightsJson.data)) {
-                        offers = realFlightsJson.data;
-                        }
-
-                        // Push into state (or empty if nothing valid)
-                        setRealFlightsPrimary(offers);
-
-                    } else {
-                        // If they typed city names instead of IATA codes, just clear live prices
-                        setRealFlightsPrimary([]);
-                    }
-                } catch (err) {
-                    console.error("Real flights fetch failed:", err);
-                    setRealFlightsPrimary([]);
-                }
-
-            // Live prices for comparison destination (Option B)
-            try {
-                if (hasComparison) {
-                    const totalPassengers =
-                    (passengers.adults ?? 0) +
-                    (passengers.youngAdults ?? 0) +
-                    (passengers.children ?? 0) +
-                    (passengers.infants ?? 0);
-
-                    const originCode = origin.trim().toUpperCase();
-                    const compareCode = compareDestination.trim().toUpperCase();
-                    const departureISO = toIsoDate(departureDate);
-                    const returnISO = toIsoDate(returnDate);
-                    const iataRegex = /^[A-Z]{3}$/;
-
-                    if (
-                    iataRegex.test(originCode) &&
-                    iataRegex.test(compareCode) &&
-                    departureISO
-                    ) {
-                    const queryParamsB = new URLSearchParams({
-                        origin: originCode,
-                        destination: compareCode,
-                        departureDate: departureISO,
-                        adults: String(totalPassengers || 1),
-                    });
-                    if (returnISO) queryParamsB.set("returnDate", returnISO);
-
-                    const realFlightResponseB = await fetchWithRetry(
-                        `${API_BASE_URL}/real-flights?${queryParamsB.toString()}`
-                    );
-
-                    const realFlightsJsonB = await realFlightResponseB.json();
-                    console.log("Real flights JSON (compare):", realFlightsJsonB);
-
-                    let offersB = [];
-                    if (Array.isArray(realFlightsJsonB.offers)) {
-                        offersB = realFlightsJsonB.offers;
-                    } else if (Array.isArray(realFlightsJsonB.data)) {
-                        offersB = realFlightsJsonB.data;
-                    }
-
-                    setRealFlightsCompare(offersB);
-                    } else {
-                    setRealFlightsCompare([]);
-                    }
-                } else {
-                    // no compare destination, make sure column B is empty
-                    setRealFlightsCompare([]);
-                }
-                } catch (err) {
-                console.error("Real flights fetch failed (compare):", err);
-                setRealFlightsCompare([]);
-                }
-
-
+            // --- IMAGE GENERATION ---
             // Generate image based on primary suggestion
             if (primaryResponse.imageGenPrompt) {
                 await handleGenerateImage(primaryResponse.imageGenPrompt);
@@ -1197,7 +1211,7 @@ const App = () => {
                                 passengers={passengers}
                                 isBestValue={isBestValueB}
                                 weather={weatherSecondary}
-                                realFlights={realFlightsCompare}
+                                realFlights={realFlightsSecondary}
                             />
                         </div>
                     </section>
