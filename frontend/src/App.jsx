@@ -287,7 +287,6 @@ const fetchWeatherForDestination = async (destination) => {
     }
 }
 
-
 // --- REAL FLIGHTS HELPERS ---
 // AIRPORT RESOLUTION HELPER: Helper function to resolve airport codes to city names
 async function resolveAirports({

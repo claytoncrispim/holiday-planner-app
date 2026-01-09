@@ -1,3 +1,4 @@
+import { useState } from "react";
 import FlightCard from "./FlightCard";
 import InfoSectionCard from "./InfoSectionCard";
 import formatDate from "../utils/formatDate";
@@ -5,82 +6,8 @@ import WeatherCard from "./WeatherCard";
 import { Sparkles, Info } from "lucide-react";
 import InfoTooltip from "../utils/InfoToolTip";
 import currencyFormatter from "../utils/currencyFormatter";
-
-// --- HELPERS ---
-// Helper to build a Google Hotel search URL
-const buildGoogleHotelsUrl = ({
-    destinationName,
-    departureDate,
-    returnDate,
-    totalPassengers,
-}) => {
-    if (!destinationName) {
-        return "https://www.google.com/travel/hotels";
-    }
-
-    let datePart = "";
-    if (departureDate && returnDate) {
-        datePart = `from ${departureDate} to ${returnDate}`;
-    } else if (departureDate) {
-        datePart = `from ${departureDate}`;
-    }
-
-    let paxPart = "";
-    if (typeof totalPassengers === "number" && totalPassengers > 0) {
-        paxPart = ` for ${totalPassengers} guest${
-            totalPassengers > 1 ? "s" : ""
-        }`;
-    }
-
-    const query = `Hotels in ${destinationName} ${datePart} ${paxPart}`;
-    const encoded = encodeURIComponent(query.trim());
-
-    return `https://www.google.com/travel/hotels?q=${encoded}`;
-}
-
-// Helper to build a Google Package search URL
-const buildGooglePackagesUrl = ({
-    originName,
-    destinationName,
-    departureDate,
-    returnDate,
-    nights,
-    totalPassengers,
-}) => {
-    if (!originName || !destinationName) {
-        return "https://www.google.com/search?q=package+holidays";
-
-    }
-
-    // Build date part
-    let datePart = "";
-    if (departureDate && returnDate) {
-        datePart = `from ${departureDate} to ${returnDate}`;
-    } else if (departureDate) {
-        datePart = `from ${departureDate}`;
-    }
-
-    // Build nights part
-    let nightsPart = "";
-    if (typeof nights === "number" && nights > 0) {
-        nightsPart = ` for ${nights} night${nights > 1 ? "s" : ""}`;
-    }
-    
-    // Build passengers part
-    let paxPart = "";
-    if (typeof totalPassengers === "number" && totalPassengers > 0) {
-        paxPart = ` for ${totalPassengers} guest${
-            totalPassengers > 1 ? "s" : ""
-        }`;
-    }
-
-    const query = `Package holidays from ${originName} to ${destinationName} ${datePart} ${nightsPart} ${paxPart}`;
-    const encoded = encodeURIComponent(query.trim());
-
-    return `https://www.google.com/search?q=${encoded}`;
-}
-
-// --- END HELPERS ---
+import buildGoogleHotelsUrl from "../utils/buildGoogleHotelsUrl";
+import buildGooglePackagesUrl from "../utils/buildGooglePackagesUrl";
 
 // --- COMPONENT ---
 /**
@@ -113,6 +40,11 @@ const DestinationGuideColumn = ({
     weather,
     realFlights = [],
 }) => {
+
+    // State for the modal containing the full list of live fares
+    const [showFaresModal, setShowFaresModal] = useState(false);
+
+
     if (!guide) return null;
 
     const totalPassengers = 
@@ -149,6 +81,34 @@ const DestinationGuideColumn = ({
         nights,
         totalPassengers,
     });
+
+    const uniqueRealFlights = (() => {
+        if (!realFlights || realFlights.length === 0) return [];
+
+        const seen = new Set();
+        const result = [];
+
+        for (const offer of realFlights) {
+            const airline =
+                offer.airlineName ||
+                offer.airlineCode ||
+                offer.carrierCode ||
+                "Flight"
+            ;
+
+            const stops = typeof offer.stops === "number" ? offer.stops : 0;
+
+            // Key: airline + price + stops
+            const key = `${airline}-${offer.price}-${stops}`;
+
+            if (!seen.has(key)) {
+                seen.add(key);
+                result.push(offer);
+            }
+        }
+
+        return result;
+    })();
 
     return (
         <div className="space-y-4 mt-4">
@@ -239,56 +199,83 @@ const DestinationGuideColumn = ({
             )}
 
             {/* Live prices (beta) from real API */}
-            {realFlights && realFlights.length > 0 && (
-                <section className="space-y-1">
-                    <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-semibold text-sky-900 uppercase tracking-wide">
-                            🔥 Live prices (beta)
-                        </h4>
-                        <span className="text-[10px] text-sky-700">
-                            From real flight API
-                        </span>
-                    </div>
+            {Array.isArray(uniqueRealFlights) && uniqueRealFlights.length > 0 && (() => {
+                // 🔒 Extra safety: if deduped list is empty, render nothing
+                if (!uniqueRealFlights || uniqueRealFlights.length === 0) {
+                    return null;
+                }
 
-                    <div className="space-y-1.5">
-                        {realFlights.slice(0, 3).map((offer) => (
-                            <div
-                                key={offer.id || `${offer.carrierCode}-${offer.flightNumber}-${offer.price}`}
-                                className="flex items-center justify-between rounded-lg bg-sky-50/70 border border-sky-100 px-3 py-2 text-xs text-stone-800"
-                            >
-                                <div className="flex flex-col">
-                                    <span className="font-semibold">
-                                        {
-                                            offer.airlineName || 
-                                            offer.airlineCode ||
-                                            offer.carrierCode || 
-                                            "Flight"
-                                        }
-                                    </span>
-                                    {offer.origin && offer.destination && (
-                                        <span className="text-[11px] text-stone-600">
-                                            {offer.origin} → {offer.destination}
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="text-right">
-                                    <span className="text-sm font-bold text-orange-600">
-                                        {currencyFormatter(
-                                            "en-US",
-                                            selectedCurrency,
-                                            offer.price
-                                        )}
-                                    </span>
-                                    </div>
+                const topOffer = uniqueRealFlights[0]; // cheapest unique offer
+
+                return (
+                    <>
+                        <section className="space-y-1">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-semibold text-sky-900 uppercase tracking-wide">
+                                    🔥 Live prices (beta)
+                                </h4>
+                                <span className="text-[10px] text-sky-700">
+                                    From real flight API
+                                </span>
                             </div>
-                        ))}
-                    </div>
 
-                    <p className="text-[10px] text-stone-500">
-                        Snapshot only - tap a flight above and use "Search on Google Flights" for full availability and options.
-                    </p>
-                </section>
-            )}
+                            {/* single highlighted fare */}
+                            <div className="space-y-1.5">
+                                <div
+                                    key={
+                                        topOffer.id ||
+                                        `${topOffer.carrierCode}-${topOffer.flightNumber}-${topOffer.price}`
+                                    }
+                                    className="flex items-center justify-between rounded-lg bg-sky-50/70 border border-sky-100 px-3 py-2 text-xs text-stone-800"
+                                >
+                                    <div className="flex flex-col">
+                                        <span className="font-semibold">
+                                            {topOffer.airlineName ||
+                                                topOffer.airlineCode ||
+                                                topOffer.carrierCode ||
+                                                "Flight"}
+                                        </span>
+
+                                        {topOffer.origin && topOffer.destination && (
+                                            <span className="text-[11px] text-stone-600">
+                                                {topOffer.origin} → {topOffer.destination}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="text-right">
+                                        <span className="text-sm font-bold text-orange-600">
+                                            {currencyFormatter(
+                                                "en-US",
+                                                selectedCurrency,
+                                                topOffer.price
+                                            )}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] text-stone-500">
+                                    Snapshot only – tap a flight above and use{" "}
+                                    <span className="italic">“Search on Google Flights”</span>{" "}
+                                    for full availability and options.
+                                </p>
+
+                                {uniqueRealFlights.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFaresModal(true)}
+                                        className="ml-2 text-[10px] text-sky-700 underline underline-offset-2 hover:text-sky-900"
+                                    >
+                                        View all {uniqueRealFlights.length} live fares
+                                    </button>
+                                )}
+                            </div>
+                        </section>
+                    </>
+                );
+            })()}
 
             {/* Live weather */}
             {weather && <WeatherCard weather={weather} />}
@@ -351,6 +338,78 @@ const DestinationGuideColumn = ({
                 <InfoSectionCard title="What’s the best option?" emoji="⚖️">
                     {guide.comparisonInfo}
                 </InfoSectionCard>
+            )}
+
+            {/* Live fares modal */}
+            {showFaresModal && Array.isArray(uniqueRealFlights) && uniqueRealFlights.length > 0 && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+                    <div className="mx-4 w-full max-w-md rounded-2xl bg-white/95 shadow-xl backdrop-blur-sm">
+                        <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
+                            <h3 className="text-sm font-semibold text-stone-800">
+                                Live fares snapshot
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => setShowFaresModal(false)}
+                                className="text-xs text-stone-500 hover:text-stone-800"
+                            >
+                                Close
+                            </button>
+                        </div>
+
+                        <div className="max-h-80 space-y-1 overflow-y-auto px-4 py-3">
+                            {uniqueRealFlights.map((offer, idx) => (
+                                <div
+                                    key={
+                                        offer.id ||
+                                        `${offer.airlineCode || offer.carrierCode || "FL"}-${
+                                        offer.flightNumber || idx
+                                        }`
+                                    }
+                                    className="flex items-center justify-between rounded-lg bg-sky-50/80 border border-sky-100 px-3 py-2 text-xs text-stone-800"
+                                >
+                                    <div className="flex flex-col">
+                                        <span className="font-semibold text-stone-800">
+                                            {offer.airlineName ||
+                                                offer.airlineCode ||
+                                                offer.carrierCode ||
+                                                "Flight"}
+                                        </span>
+                                        {offer.origin && offer.destination && (
+                                            <span className="text-[11px] text-stone-600">
+                                                {offer.origin} → {offer.destination}
+                                            </span>
+                                        )}
+                                        {offer.departureTime && (
+                                            <span className="text-[10px] text-stone-500">
+                                                {offer.departureTime}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-sm font-bold text-orange-600">
+                                            {currencyFormatter(
+                                                "en-US",
+                                                selectedCurrency,
+                                                offer.price
+                                            )}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="border-t border-stone-100 px-4 py-3">
+                            <p className="text-[10px] leading-relaxed text-stone-500">
+                                These fares come from a real flight API and are meant as a
+                                quick guide to what prices look like right now. For final
+                                availability, baggage rules and seat selection, use{" "}
+                                <span className="italic">“Search on Google Flights”</span> or
+                                your preferred booking site.
+                            </p>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
