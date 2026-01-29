@@ -167,13 +167,13 @@ root
 
 ---
 ## 🚀 Getting Started (local dev)
-## 1. Clone the repo
+### 1. Clone the repo
 ```bash
 git clone https://github.com/YOUR_USERNAME/holiday-planner-app.git
 cd holiday-planner-app
 ```
 
-## 2. Backend setup (`backend/`)
+### 2. Backend setup (`backend/`)
 ```bash
 cd backend
 npm install
@@ -197,7 +197,7 @@ npm start        # or: node server.js / npm run dev (depending on your scripts)
 
 The backend should be available at `http://localhost:8080`.
 
-## 3. Frontend setup (`frontend/`)
+### 3. Frontend setup (`frontend/`)
 ```bash
 cd ../frontend
 npm install
@@ -253,6 +253,33 @@ Uses `VITE_API_BASE_URL` pointing to the Render backend URL.
   - UI shows the cheapest unique fare as the headline, with a modal to see all unique fares.
 
 ---
+### 🖼️ AI images, diversity and safety
+
+Holiday Planner uses **Google Imagen** to generate destination preview images, but the app does **not** send Imagen whatever Gemini suggests by default.
+
+Instead, the frontend builds Imagen prompts through a dedicated helper (`buildImagePrompt`) with a few explicit rules:
+
+- **Minors-safe behaviour**
+  - The app inspects the passenger breakdown (adults, young adults, children, infants).
+  - If the group includes minors, the image prompt:
+    - Focuses mainly on the **destination scenery** (streets, coastline, landmarks, nature).
+    - Allows only generic **adult** travellers in the distance.
+    - Explicitly instructs the model **not** to depict or mention “children, kids, minors, teens or infants”.
+- **Consistent diversity**
+  - When it’s safe to show people (adults only), prompts always ask for a **mix of skin tones and ethnic backgrounds** (Black, Brown, White, East Asian, South Asian, and mixed-race), presented positively and naturally.
+  - No single person is the “hero” of the image; the group shares the scene.
+- **No visual link between budget and appearance**
+  - Budget level (Budget / Balanced / Comfort) affects how Gemini describes flights and hotels, but **not** how travellers look.
+  - Prompts explicitly avoid linking appearance to wealth, status or comfort.
+- **Anti-stereotype guidance**
+  - Prompts ask for candid, documentary-style travel photography with:
+    - No exaggerated luxury props
+    - No brand logos or text
+    - No stereotyped depictions of any group
+
+Even with these safeguards, AI-generated images can still be imperfect or biased, so this logic is designed as a **deliberate mitigation layer**, not a guarantee. The goal is to make the visual side of Holiday Planner more inclusive and less stereotyped while still feeling aspirational and fun to use.
+
+---
 ### 🔮 Roadmap / ideas
 
 Some ideas I might explore next:
@@ -269,7 +296,7 @@ Some ideas I might explore next:
   - 🔗 More real APIs (hotel search, packages) for even richer meta-search behaviour.
 
   ---
-### 🙋 About the author
+## 🙋 About the author
 
 This project was designed and built by **Clayton Crispim** as a hands-on way to:
 
@@ -284,7 +311,7 @@ If you’d like to chat, feel free to reach out via GitHub issues or my profile.
 
 ---
 
-### 📄 License
+## 📄 License
 
 This project is currently shared for portfolio and learning purposes.
 If you’d like to reuse part of it, please open an issue or contact me first.
