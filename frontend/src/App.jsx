@@ -7,8 +7,10 @@ import GeneratedImageCard from "./components/GeneratedImageCard";
 import TripSummaryBar from "./components/TripSummaryBar";
 import SavedTripsPanel from "./components/SavedTripsPanel";
 import DestinationGuideColumn from './components/DestinationGuideColumn';
-// Import of Formatters
+// Import of Utils
 import formatDate from './utils/formatDate';
+import buildImagePrompt from './utils/buildImagePrompt';
+import hasMinorsInPassengers from './utils/hasMinorsInPassengers';
 
 
 // --- CONFIGURATION ---
@@ -139,17 +141,7 @@ const buildPrompt = ({
     weatherSummary,
 }) => {
     // Detect if there are minors in the group
-    const hasMinors = 
-        passengers &&
-            (   
-                // if any of these counts are greater than zero
-                // then we have minors in the group
-                // at least one child, infant, or young adult
-                // considered a minor for travel purposes
-                (passengers.children ?? 0) > 0 ||
-                (passengers.infants ?? 0) > 0 ||
-                (passengers.youngAdults ?? 0) > 0
-            );
+    const hasMinors = hasMinorsInPassengers(passengers);
     
     const imagePromptInstruction = hasMinors
     ? `
@@ -542,6 +534,9 @@ const App = () => {
             return;
         }
 
+        // Detect if there are minors in the group (for safe image prompting)
+        const hasMinors = hasMinorsInPassengers(passengers);
+
         setLoading(true);
         setError(null);
         setDateError(null);
@@ -613,8 +608,8 @@ const App = () => {
             try {
                 const { originIata: oIata, destinationIata: dIata, compareIata: cIata, raw } =
                     await resolveAirports({
-                    origin,                 // you can keep raw origin here
-                    destination: destA,     // trimmed destination
+                    origin,                 
+                    destination: destA,     
                     compareDestination: destB,
                     API_BASE_URL,
                     });
@@ -698,10 +693,14 @@ const App = () => {
             
 
             // --- IMAGE GENERATION ---
-            // Generate image based on primary suggestion
-            if (primaryResponse.imageGenPrompt) {
-                await handleGenerateImage(primaryResponse.imageGenPrompt);
-            }
+            // Build a safe, diversity-aware, minors-aware prompt for Imagen
+            const safeImagePrompt = buildImagePrompt({
+                destinationName: primaryResponse.destinationName || destA,
+                weatherSummary: weatherSummaryA,
+                hasMinors,
+            });
+
+            await handleGenerateImage(safeImagePrompt);
 
             // If there is no comparison destination, we are done
             if (!destB) {
