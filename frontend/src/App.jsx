@@ -21,8 +21,11 @@ const API_BASE_URL =
 // --- HELPERS ---
 
 // --- RETRY HELPER FUNCTION ---
+// Sleep helper function for delays between retries
+// It returns a Promise that resolves after the specified milliseconds
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Fetch with retry logic for transient errors
 async function fetchWithRetry(
     url, 
     options = {}, 
