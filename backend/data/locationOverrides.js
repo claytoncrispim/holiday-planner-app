@@ -65,6 +65,12 @@ const LOCATION_OVERRIDES = {
     city: "Las Palmas",
     country: "ES",
   },
+  "maspalomas": {
+    iataCode: "LPA",
+    name: "Las Palmas de Gran Canaria",
+    city: "Las Palmas",
+    country: "ES",
+  },
 
   // Tenerife – city code covering both North/South
   "tenerife": {
