@@ -656,19 +656,19 @@ const App = () => {
             const hasComparison = !!destB;
 
             if (hasComparison && originIata && compareIata) {
-            try {
-                const realJson = await fetchRealFlights({
-                originIata,
-                destinationIata: compareIata,
-                departureDate,
-                returnDate,
-                passengers: totalPassengers,
-                });
-                secondaryOffers = realJson.offers || [];
-                console.log("Real flights JSON (secondary):", realJson);
-            } catch (err) {
-                console.error("Real flights (secondary) failed:", err);
-            }
+                try {
+                    const realJson = await fetchRealFlights({
+                    originIata,
+                    destinationIata: compareIata,
+                    departureDate,
+                    returnDate,
+                    passengers: totalPassengers,
+                    });
+                    secondaryOffers = realJson.offers || [];
+                    console.log("Real flights JSON (secondary):", realJson);
+                } catch (err) {
+                    console.error("Real flights (secondary) failed:", err);
+                }
             }
 
             // --- 4) Push into state so UI can render ---
