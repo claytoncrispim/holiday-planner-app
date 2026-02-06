@@ -335,13 +335,54 @@ app.get("/real-flights", asyncHandler(async (req, res) => {
 app.get("/resolve-airports", async (req, res) => {
   const { origin, destination, compare } = req.query;
 
+  const missing = [];
+  if (!origin) missing.push("origin");
+  if (!destination) missing.push("destination");
+  if (missing.length) {
+    return apiError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      `Missing required query parameters: ${missing.join(", ")}`,
+      { missing }
+    );
+  }
+
+  const originStr = String(origin).trim();
+  const destinationStr = String(destination).trim();
+  const compareStr = compare ? String(compare).trim() : null;
+
+  if (!originStr || !destinationStr) {
+    return apiError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "origin and destination must be non-empty strings."
+    );
+  }
+
   try {
     const [originResolved, destinationResolved, compareResolved] =
       await Promise.all([
-        resolveToIATA(origin),
-        resolveToIATA(destination),
-        compare ? resolveToIATA(compare) : Promise.resolve(null),
-      ]);
+        resolveToIATA(originStr),
+        resolveToIATA(destinationStr),
+        compareStr ? resolveToIATA(compareStr) : Promise.resolve(null),
+      ])
+    ;
+    
+    // If any required resolution failed, return 404 (not found/unresolvable)
+    if (!originResolved || !destinationResolved) {
+      return apiError(
+        res,
+        404,
+        "NOT_FOUND",
+        "Could not resolve one or more locations to an airport code.",
+        {
+          originResolved: !!originResolved,
+          destinationResolved: !!destinationResolved,
+        }
+      );
+    }
 
     res.json({
       origin: originResolved,
@@ -349,10 +390,13 @@ app.get("/resolve-airports", async (req, res) => {
       compare: compareResolved,
     });
   } catch (err) {
-    console.error("resolve-airports error:", err);
-    res
-      .status(500)
-      .json({ error: "Failed to resolve airports", details: err.toString() });
+    console.error("resolve-airports unexpected error:", err);
+    return apiError(
+      res,
+      500,
+      "INTERNAL_ERROR",
+      "Failed to resolve airports."
+    );
   }
 });
 
