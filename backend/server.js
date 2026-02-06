@@ -12,9 +12,6 @@ import fetchWeatherForecast from "./utils/fetchWeatherForecast.js";
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const PORT = process.env.PORT || 8080;
 
-// Debugging log to confirm API key is loaded
-console.log("BACKEND API KEY:", GOOGLE_API_KEY);
-
 const app = express();
 app.use(cors());
 app.use(express.json());
