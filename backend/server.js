@@ -7,6 +7,9 @@ import fetch from "node-fetch";
 import resolveToIATA from "./utils/resolveToIATA.js";
 import getAmadeusToken from "./utils/getAmadeusToken.js";
 import fetchWeatherForecast from "./utils/fetchWeatherForecast.js";
+import { apiError, asyncHandler} from "./utils/http.js";
+import isIsoDate from "./utils/isIsoDate.js";
+import isIataCode from "./utils/isIataCode.js";
 
 // Load config from .env
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
@@ -174,7 +177,7 @@ app.get("/weather", async (req, res) => {
 });
 
 // --- REAL-FLIGHTS ROUTE ---
-app.get("/real-flights", async (req, res) => {
+app.get("/real-flights", asyncHandler(async (req, res) => {
   const {
     origin,
     destination,
@@ -183,24 +186,77 @@ app.get("/real-flights", async (req, res) => {
     adults = "1",
   } = req.query;
 
-  if (!origin || !destination || !departureDate) {
-    return res.status(400).json({
-      error: "Missing required query parameters. Need origin, destination, and departureDate.",
-    });
+  // ---- Validation ----
+  const missing = [];
+  if (!origin) missing.push("origin");
+  if (!destination) missing.push("destination");
+  if (!departureDate) missing.push("departureDate");
+
+  if (missing.length) {
+     return apiError(
+       res,
+       400,
+       "VALIDATION_ERROR",
+       `Missing required query parameters: ${missing.join(", ")}`,
+       { missing }
+     );
+   }
+
+  // Format checks
+  if (!isIataCode(origin) || !isIataCode(destination)) {
+    return apiError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Origin and destination must be valid IATA codes (3 uppercase letters).",
+      { origin, destination }
+    );
   }
+
+  if (!isIsoDate(departureDate) || (returnDate && !isIsoDate(returnDate))) {
+    return apiError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "departureDate and returnDate must be in YYYY-MM-DD format.",
+      { departureDate, returnDate }
+    );
+  }
+
+  const adultsNum = Number(adults);
+  if (!Number.isInteger(adultsNum) || adultsNum < 1 || adultsNum > 9) {
+    return apiError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Adults must be an integer between 1 and 9.",
+      { adults }
+    );
+  }
+
+  // if (!origin || !destination || !departureDate) {
+  //   return apiError(
+  //     res,
+  //     400,
+  //     "VALIDATION_ERROR",
+  //     "Missing required query parameters: origin, destination, departureDate",
+  //     // Log which parameters were provided for debugging
+  //     { origin: !!origin, destination: !!destination, departureDate: !!departureDate }
+  //   )
+  // }
 
   try {
     const token = await getAmadeusToken();
 
     const params = new URLSearchParams({
-      originLocationCode: origin,
-      destinationLocationCode: destination,
-      departureDate,
-      adults: String(adults),
-      currencyCode: "EUR",
-      max: "6",
+        originLocationCode: origin,
+        destinationLocationCode: destination,
+        departureDate,
+        adults: String(adultsNum),
+        currencyCode: "EUR",
+        max: "6",
     });
-
+  
     if (returnDate) {
       params.set("returnDate", returnDate);
     }
@@ -215,54 +271,64 @@ app.get("/real-flights", async (req, res) => {
 
     const amadeusData = await amadeusRes.json();
 
+    //  ---- Upstream error mapping ----
     if (!amadeusRes.ok) {
-      console.error("Amadeus search error:", amadeusData);
-      return res.status(500).json({
-        error: "Failed to fetch flight offers from Amadeus",
-        details: amadeusData,
+      // Log internal details for debugging, without leaking to the client
+      console.error("AMADEUS_ERROR:", {
+        status: amadeusRes.status,
+        data: amadeusData
       });
+
+      // 5xx from provider => 503 (unavailable). Otherwise 502 (bad gateway)
+      const status = amadeusRes.status >= 500 ? 503 : 502;
+
+      return apiError(
+        res,
+        status,
+        status === 503 ? "UPSTREAM_UNAVAILABLE" : "UPSTREAM_BAD_RESPONSE",
+        "Failed to fetch flight offers from provider."
+      );
     }
       
+    // ---- Map provider → domain offers ----
     // Map Amadeus structure: simplified objects that the UI can handle
     const offers = 
-      amadeusData.data?.map((offer, idx) => {
-        const firstItin = offer.itineraries?.[0];
-        if (!firstItin) return null;
+      amadeusData.data
+        ?.map((offer, idx) => {
+          const firstItin = offer.itineraries?.[0];
+          if (!firstItin) return null;
 
-        const segments = firstItin.segments || [];
-        if (!segments.length) return null;
+          const segments = firstItin.segments || [];
+          if (!segments.length) return null;
 
-        const firstSeg = segments[0];
-        const lastSeg = segments[segments.length - 1];
-        
-        return {
-          id: offer.id || `amadeus-${idx}`,
-          provider: "amadeus",
-          airlineCode: firstSeg.carrierCode,
-          flightNumber: firstSeg.number,
-          departureAirport: firstSeg.departure?.iataCode,
-          arrivalAirport: lastSeg.arrival?.iataCode,
-          departureTime: firstSeg.departure?.at,
-          arrivalTime: lastSeg.arrival?.at,
-          duration: firstItin.duration, // ISO 8601 duration, e.g. "PT2H30M"
-          stops: Math.max(0, segments.length - 1),
-          price: Number(offer.price?.total) || 0,
-          currency: offer.price?.currency || "EUR",
-        };
-      })
-      .filter(Boolean)// remove nulls
-      .slice(0, 6) || []; // limit to 6 offers max or empty array
+          const firstSeg = segments[0];
+          const lastSeg = segments[segments.length - 1];
+          
+          return {
+            id: offer.id || `amadeus-${idx}`,
+            provider: "amadeus",
+            airlineCode: firstSeg.carrierCode,
+            flightNumber: firstSeg.number,
+            departureAirport: firstSeg.departure?.iataCode,
+            arrivalAirport: lastSeg.arrival?.iataCode,
+            departureTime: firstSeg.departure?.at,
+            arrivalTime: lastSeg.arrival?.at,
+            duration: firstItin.duration, // ISO 8601 duration, e.g. "PT2H30M"
+            stops: Math.max(0, segments.length - 1),
+            price: Number(offer.price?.total) || 0,
+            currency: offer.price?.currency || "EUR",
+          };
+        })
+        .filter(Boolean)// remove nulls
+        .slice(0, 6) || []; // limit to 6 offers max or empty array
 
     return res.json({ offers });
   } catch (err) {
-    console.error("Real flights route error:", err);
-    return res
-      .status(500)
-      .json({ 
-        error: "Internal error searching real flights" 
-      });
+      console.error("Real flights route error:", err);
+      return apiError(res, 500, "INTERNAL_ERROR", "Internal error searching real flights." );
   }
-});
+
+}));
 
 // --- Airport resolution API ---
 // GET /resolve-airports?origin=...&destination=...&compare=...
@@ -289,6 +355,15 @@ app.get("/resolve-airports", async (req, res) => {
       .json({ error: "Failed to resolve airports", details: err.toString() });
   }
 });
+
+// Global error handler (catches unhandled errors from routes)
+app.use((err, req, res, next) => {
+  console.error("UNHANDLED_ERROR:", err); // log internal details
+  return res.status(500).json({
+    error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+  });
+});
+
 
 // Start the server
 app.listen(PORT, () => {
