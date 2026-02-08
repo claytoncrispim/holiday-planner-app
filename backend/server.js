@@ -10,6 +10,7 @@ import fetchWeatherForecast from "./utils/fetchWeatherForecast.js";
 import { apiError, asyncHandler} from "./utils/http.js";
 import isIsoDate from "./utils/isIsoDate.js";
 import isIataCode from "./utils/isIataCode.js";
+import { resolveErrorType } from "./utils/resolveResult.js";
 
 // Load config from .env
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
@@ -361,33 +362,83 @@ app.get("/resolve-airports", async (req, res) => {
     );
   }
 
+  // Helper to determine which error to return if multiple resolutions fail
+  function pickWorstError(a, b) {
+    const priority = [
+      resolveErrorType.UPSTREAM_UNAVAILABLE,
+      resolveErrorType.UPSTREAM_BAD_RESPONSE,
+      resolveErrorType.NOT_FOUND,
+      resolveErrorType.INTERNAL_ERROR,
+      resolveErrorType.NONE,
+    ];
+    return (
+      priority.find((t) => a === t || b === t) || resolveErrorType.INTERNAL_ERROR
+    );
+  }
+
+  // Map internal resolution error types to API error responses
+  function mapResolveError(errorType) {
+    switch (errorType) {
+      case resolveErrorType.NOT_FOUND:
+        return {
+          status: 404,
+          code: "NOT_FOUND",
+          message: "Could not resolve one or more locations to an airport code.",
+        };
+      case resolveErrorType.UPSTREAM_UNAVAILABLE:
+        return {
+          status: 503,
+          code: "UPSTREAM_UNAVAILABLE",
+          message: "Airport resolver temporarily unavailable.",
+        };
+      case resolveErrorType.UPSTREAM_BAD_RESPONSE:
+        return {
+          status: 502,
+          code: "UPSTREAM_BAD_RESPONSE",
+          message: "Airport resolver returned an unusable response.",
+        };
+      case resolveErrorType.INTERNAL_ERROR:
+      default:
+        return {
+          status: 500,
+          code: "INTERNAL_ERROR",
+          message: "Failed to resolve airports.",
+        };
+    }
+  }
+
   try {
-    const [originResolved, destinationResolved, compareResolved] =
-      await Promise.all([
+    const [originOut, destinationOut, compareOut] = await Promise.all([
         resolveToIATA(originStr),
         resolveToIATA(destinationStr),
-        compareStr ? resolveToIATA(compareStr) : Promise.resolve(null),
+        compareStr 
+        ? resolveToIATA(compareStr) 
+        : Promise.resolve({ result: null, errorType: resolveErrorType.NONE }),
       ])
     ;
     
-    // If any required resolution failed, return 404 (not found/unresolvable)
-    if (!originResolved || !destinationResolved) {
+    const worst = pickWorstError(
+      originOut.errorType,
+      destinationOut.errorType
+    );
+
+    if (worst !== resolveErrorType.NONE) {
+      const mapped = mapResolveError(worst);
       return apiError(
         res,
-        404,
-        "NOT_FOUND",
-        "Could not resolve one or more locations to an airport code.",
-        {
-          originResolved: !!originResolved,
-          destinationResolved: !!destinationResolved,
+        mapped.status,
+        mapped.code,
+        mapped.message, {
+          originErrorType: originOut.errorType,
+          destinationErrorType: destinationOut.errorType,
         }
       );
     }
 
     res.json({
-      origin: originResolved,
-      destination: destinationResolved,
-      compare: compareResolved,
+      origin: originOut.result,
+      destination: destinationOut.result,
+      compare: compareOut.result,
     });
   } catch (err) {
     console.error("resolve-airports unexpected error:", err);
