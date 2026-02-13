@@ -11,6 +11,9 @@ import DestinationGuideColumn from './components/DestinationGuideColumn';
 import formatDate from './utils/formatDate';
 import buildImagePrompt from './utils/buildImagePrompt';
 import hasMinorsInPassengers from './utils/hasMinorsInPassengers';
+import { fetchWithRetry } from './utils/fetchWithRetry';
+import { ApiError } from './utils/ApiError';
+import getUserMessage from './utils/getUserMessage';
 
 
 // --- CONFIGURATION ---
@@ -20,101 +23,33 @@ const API_BASE_URL =
 
 // --- HELPERS ---
 
-// --- RETRY HELPER FUNCTION ---
-// Sleep helper function for delays between retries
-// It returns a Promise that resolves after the specified milliseconds
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Fetch with retry logic for transient errors
-async function fetchWithRetry(
-    url, 
-    options = {}, 
-    { retries = 2, delay = 4000 } = {}
-) {
-    let lastError;
-
-    for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-            const res = await fetch(url, options);
-
-            // If it's a "cold backend" style status, retry a couple of times
-            if (!res.ok && [502, 503, 504].includes(res.status) && attempt < retries) {
-                console.warn(
-                `Request to ${url} failed with status ${res.status}. Retrying in ${delay}ms... (Attempt ${
-                    attempt + 1
-                } of ${retries + 1})`
-                );
-                await sleep(delay);
-                continue;
-            }
-
-            // Return the response *even if* it's not ok.
-            // callGemini / other callers will inspect res.ok / res.status.
-            return res;
-            } catch (err) {
-            lastError = err;
-            console.warn(`Request to ${url} failed on attempt ${attempt}:`, err);
-
-            if (attempt < retries) {
-                await sleep(delay);
-                continue;
-            }
-
-            // All retries exhausted → propagate network error
-            throw lastError;
-            }
-        }
-
-        // Should never reach here, but just in case:
-        throw lastError || new Error("Unknown error in fetchWithRetry");
-        }
 
 // --- GEMINI API CALL FUNCTION ---
 // Helper function for Gemini initialization
 const callGemini = async (prompt) => {
-    let response;
     try {
-        response = await fetchWithRetry(
+        const res = await fetchWithRetry(
             `${API_BASE_URL}/generate-guide`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt }),
         });
-    } catch (networkErr) {
-        // Network, CORS, or backend not runnning error
-        const err = new Error("NETWORK_ERROR");
-        err.cause = networkErr;
+
+        const data = await res.json();
+
+        if (!data || typeof data !== "object") {
+            throw new Error("UNEXPECTED_RESPONSE_SHAPE");
+        }
+
+        return data;
+    } catch (err) {
+        // Keep rich errors from backend (VALIDATION_ERROR, UPSTREAM_*, etc.)
+        if (err instanceof ApiError) throw err;
+
+        // Network failure / JSOn parse failure / unexpected response shape
         throw err;
-    }
-
-    let data;
-    try {
-        data = await response.json();
-    } catch (parseErr) {
-        const err = new Error("INVALID_JSON_FROM_SERVER");
-        err.status = response.status;
-        err.cause = parseErr;
-        throw err;
-    }
-
-    if (!response.ok) {
-        // Backend returned an error status
-        const message =
-            data?.error ||
-            `Server returned an error (${response.status}). Please try again`;
-
-        const err = new Error(message);
-        err.status = response.status;
-        throw err;
-    }
-
-    // The backend now returns structured JSON, so we return it directly
-    if (!data || typeof data !== "object") {
-        throw new Error("UNEXPECTED_RESPONSE_SHAPE");
-    }
-
-    return data;
-}
+    }    
+};
 
 // --- NIGHTS CALCULATION FUNCTION ---
 // Helper function to calculate number of nights between two dates
@@ -128,7 +63,7 @@ const calculateNights = (start, end) => {
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
     return diffDays > 0 ? diffDays : null;
 
-}
+};
 
 // --- PROMPT BUILDER FUNCTION ---
 // Helper function to build the Gemini prompt
@@ -210,7 +145,7 @@ const buildPrompt = ({
 
         ${imagePromptInstruction}
     `;
-}
+};
 
 // --- FLIGHT PRICE EXTRACTION HELPER ---
 // Helper function to get the cheapest flight price from the guide data
@@ -269,21 +204,22 @@ const fetchWeatherForDestination = async (destination) => {
             )}`
         );
 
-        if (!res.ok) {
-            console.error("Weather API error:", res.status, await res.text());
-            return null;
-        }
-
+        // res is guaranteed ok here; otherwise fetchWithRetry throws and we catch in the outer block
         const data = await res.json();
         return data;
     } catch (err) {
-        console.error("Weather fetch failed:", err);
-        return null;
+        // Nicer logging for known API errors
+        if (err instanceof ApiError) {
+            console.warn("Weather API error:", err.status, err.code, err.message);
+        } else {
+            console.warn("Weather fetch failed:", err);
+        }
+        return null; // non-blocking
     }
-}
+};
 
 // --- REAL FLIGHTS HELPERS ---
-// AIRPORT RESOLUTION HELPER: Helper function to resolve airport codes to city names
+// AIRPORT RESOLUTION HELPER: resolve user text into IATA codes via backend
 async function resolveAirports({
     origin,
     destination,
@@ -296,21 +232,30 @@ async function resolveAirports({
     if (destination) resolveUrl.searchParams.set("destination", destination);
     if (compareDestination) resolveUrl.searchParams.set("compare", compareDestination);
 
-    const res  = await fetch(resolveUrl.toString());
-    if (!res.ok) {
-        throw new Error(`resolve-airports failed with status ${res.status}`);
+    try {
+        const res  = await fetchWithRetry(resolveUrl.toString());
+        const resolved = await res.json();
+        
+        console.log("Resolved airports:", resolved);
+
+        return {
+            originIata: resolved.origin?.iataCode ?? null,
+            destinationIata: resolved.destination?.iataCode ?? null,
+            compareIata: resolved.compare?.iataCode ?? null,
+            raw: resolved,
+        };
+    } catch (err) {
+        // Let the caller decide how to display the error, but keep rich info
+        if (err instanceof ApiError) {
+            // Examples:
+            // err.code === "NOT_FOUND" → user typed a fictional place
+            // err.code === "UPSTREAM_UNAVAILABLE" -> Amadeus down
+            throw err;
+        }
+        throw err; // network or unexpected error
     }
+};
 
-    const resolved = await res.json();
-    console.log("Resolved airports:", resolved);
-
-    return {
-        originIata: resolved.origin?.iataCode ?? null,
-        destinationIata: resolved.destination?.iataCode ?? null,
-        compareIata: resolved.compare?.iataCode ?? null,
-        raw: resolved,
-    };
-}
 // REALFLIGHTS FETCHER HELPER: Help function to fetch real flight offers
 async function fetchRealFlights({
   originIata,
@@ -319,22 +264,17 @@ async function fetchRealFlights({
   returnDate,
   passengers,
 }) {
-  const url = new URL(`${API_BASE_URL}/real-flights`);
-  url.searchParams.set("origin", originIata);
-  url.searchParams.set("destination", destinationIata);
-  url.searchParams.set("departureDate", departureDate);
-  url.searchParams.set("returnDate", returnDate);
-  url.searchParams.set("adults", String(passengers));
+    const url = new URL(`${API_BASE_URL}/real-flights`);
+    url.searchParams.set("origin", originIata);
+    url.searchParams.set("destination", destinationIata);
+    url.searchParams.set("departureDate", departureDate);
+    // returnDate is included only if it is provided, avoiding sending "null" or empty.
+    if (returnDate) url.searchParams.set("returnDate", returnDate);
+    url.searchParams.set("adults", String(passengers));
 
-  const res = await fetch(url.toString());
-
-  if (!res.ok) {
-    throw new Error(`real-flights error: ${res.status}`);
-  }
-
-  const json = await res.json();
-  return json; // { offers: [...] }
-}
+    const res = await fetchWithRetry(url.toString());
+    return res.json(); // { offers: [...] }
+};
 
 
 // --- END OF HELPERS --- 
@@ -402,7 +342,6 @@ const App = () => {
 
 
     // **** END OF STATE VARIABLES ****
-
 
 
     // **** EFFECTS *****
@@ -509,13 +448,22 @@ const App = () => {
 
             const base64 = data.predictions?.[0]?.bytesBase64Encoded;
             if (!base64) {
-                console.warn('No image returned from image generation. Prompt may have been blocked.');
-                return;
+                // Not fatal: image is optional and we can still show the guide data. But log it so we can investigate. 
+                console.warn("Image generation returned no image (possibly blocked).");
+                return null;
             }
 
-            setImageUrl(`data:image/png;base64,${base64}`);
+            const imgUrl = `data:image/png;base64,${base64}`;
+            setImageUrl(imgUrl);
+            return imgUrl;
         } catch (err) {
-            console.error('Image generation error:', err);
+            // Not fatal: image is optional.
+            if (err instanceof ApiError) {
+                console.warn('Image generation failed:', err.status, err.code, err.message);
+            } else {
+                console.warn('Image generation failed:', err);
+            }
+            return null;
         } finally {
             setIsImageLoading(false);
         }
@@ -571,31 +519,21 @@ const App = () => {
             let weatherSummaryB = null;
 
             // Primary destination weather
-            try {
-                const weatherA = await fetchWeatherForDestination(destA);
-                if (weatherA && weatherA.found && weatherA.summary?.headline) {
-                    weatherSummaryA = weatherA.summary.headline;
-                }
-                // Update UI weather state immediately
-                setWeatherPrimary(weatherA);
-            } catch (err) {
-                console.error("Error fetching weather for primary destination:", err);
-                setWeatherPrimary(null);
-            }
-
+            const weatherA = await fetchWeatherForDestination(destA);
+            // Update UI weather state immediately
+            setWeatherPrimary(weatherA);
+            if (weatherA && weatherA.found && weatherA.summary?.headline) {
+                weatherSummaryA = weatherA.summary.headline;
+            }            
+       
             // Comparison destination weather (if any)
             if (destB) {
-                try {
-                    const weatherB = await fetchWeatherForDestination(destB);
-                    if (weatherB && weatherB.found && weatherB.summary?.headline) {
-                        weatherSummaryB = weatherB.summary.headline;
-                    }
-                    // Update UI weather state immediately
-                    setWeatherSecondary(weatherB);
-                } catch (err) {
-                    console.error("Error fetching weather for secondary destination:", err);
-                    setWeatherSecondary(null);
-                }
+                const weatherB = await fetchWeatherForDestination(destB);
+                // Update UI weather state immediately
+                setWeatherSecondary(weatherB); 
+                if (weatherB && weatherB.found && weatherB.summary?.headline) {
+                    weatherSummaryB = weatherB.summary.headline;
+                }                              
             }
 
             // --- REAL FLIGHTS FETCH ---
@@ -623,7 +561,12 @@ const App = () => {
                 destinationIata = dIata;
                 compareIata = cIata;
             } catch (err) {
-                console.error("resolve-airports failed, skipping real flights:", err);
+                if (err instanceof ApiError && err.code === "NOT_FOUND") {
+                    setError(getUserMessage(err));
+                    return;
+                }
+                setError("Service temporarily unavailable. Please try again.");
+                return;
             }
 
             // Compute total passengers once
@@ -645,9 +588,8 @@ const App = () => {
                     passengers: totalPassengers,
                     });
                     primaryOffers = realJson.offers || [];
-                    console.log("Real flights JSON (primary):", realJson);
                 } catch (err) {
-                    console.error("Real flights (primary) failed:", err);
+                    console.error("Real flights (primary) unavailable:", err);
                 }
             }
 
@@ -665,9 +607,8 @@ const App = () => {
                     passengers: totalPassengers,
                     });
                     secondaryOffers = realJson.offers || [];
-                    console.log("Real flights JSON (secondary):", realJson);
                 } catch (err) {
-                    console.error("Real flights (secondary) failed:", err);
+                    console.error("Real flights (secondary) unavailable:", err);
                 }
             }
 
@@ -730,49 +671,8 @@ const App = () => {
 
         } catch (err) {
             console.error("Frontend error in handleGetGuide:", err);
-
-            // Safe default
-            let userMessage =
-                "Something went wrong while generating your travel guide. Please try again.";
-
-            // Custom network marker from callGemini
-            if (err.message === "NETWORK_ERROR") {
-                userMessage =
-                    "Oops! I couldn’t reach the Holiday Planner server on the first try. " +
-                    "If this is your first request in a while, the server might be waking up. " +
-                    "Please wait a few seconds and try again.";
-
-                console.error("Please check if the server is running on " + API_BASE_URL + ". Network error details:", err.cause);
-            }
-            // JSON parse / unexpected format from backend
-            else if (
-                err.message === "INVALID_JSON_FROM_SERVER" ||
-                err.message === "UNEXPECTED_RESPONSE_SHAPE"
-            ) {
-                userMessage =
-                    "The AI reply came back in an unexpected format. Please try again in a moment.";
-            }
-            // HTTP status-based messages from backend
-            else if (typeof err.status === "number") {
-                if (err.status === 429) {
-                    userMessage =
-                        "The AI service is receiving too many requests right now. Please wait a few seconds and try again.";
-                } else if (err.status >= 500) {
-                    userMessage =
-                        "Our server had a problem while generating your guide. Please try again shortly.";
-                } else if (err.status >= 400 && err.status < 500) {
-                    userMessage =
-                        "There was an issue with the request. Please check your inputs and try again.";
-                }
-            }
-            // Fallback: use any other message (except the internal marker)
-            else if (err.message && err.message !== "NETWORK_ERROR") {
-                userMessage = err.message;
-            }
-
-            setError(userMessage);
+            setError(getUserMessage(err));
         } finally {
-            console.log("DEBUG: loading set to FALSE");
             setLoading(false);
         }
     };

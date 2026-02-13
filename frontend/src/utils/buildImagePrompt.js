@@ -5,7 +5,7 @@ export default function buildImagePrompt({
 }) {
   const dest = destinationName || "a popular holiday destination";
   const weatherLine = weatherSummary
-    ? `The weather is ${weatherSummary}.`
+    ? weatherSummary
     : "";
 
   if (hasMinors) {
