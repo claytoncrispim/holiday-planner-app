@@ -45,7 +45,8 @@ const SearchBar = ({
     budgetLevel,
     setBudgetLevel,
     handleGetGuide, 
-    loading 
+    loading,
+    loadingLabel 
 }) => {
     // State to control if the dropdown is open or closed
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -235,7 +236,7 @@ const SearchBar = ({
                     rounded-lg shadow-md hover:bg-orange-600 transition 
                     disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                        {loading ? "Exploring options..." : "Find destination"}
+                        {loading ? (loadingLabel || "Exploring options...") : "Find destination"}
                     </button>
                 </div>
                 </form>

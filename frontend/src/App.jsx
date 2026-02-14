@@ -21,8 +21,8 @@ import getUserMessage from './utils/getUserMessage';
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
-// --- HELPERS ---
 
+// --- HELPERS ---
 
 // --- GEMINI API CALL FUNCTION ---
 // Helper function for Gemini initialization
@@ -322,7 +322,7 @@ const App = () => {
 
     // State to manage the lifecycle of the image generation
     const [imageUrl, setImageUrl] = useState(null);
-    const [isImageLoading, setIsImageLoading] = useState(false);
+    // const [isImageLoading, setIsImageLoading] = useState(false); // REFACTORED: We now have a more granular loading state for different parts of the UI, including image generation, so we replaced isImageLoading with loadingParts.image. This allows us to show loading indicators for specific sections (e.g., "Generating image...") without blocking the entire UI with a generic loading state.
 
     // Budget state
     const [budgetLevel, setBudgetLevel] = useState("medium");
@@ -340,6 +340,20 @@ const App = () => {
     const [realFlightsPrimary, setRealFlightsPrimary] = useState([]);
     const [realFlightsSecondary, setRealFlightsSecondary] = useState([]);
 
+    // --- Components Loading state ---
+    const [loadingParts, setLoadingParts] = useState({
+        weatherA: false,
+        weatherB: false,
+        airports: false,
+        flightsA: false,
+        flightsB: false,
+        guideA: false,
+        guideB: false,
+        image: false,
+    });
+
+    // --- Image Notice State ---
+    const [imageNotice, setImageNotice] = useState(null);
 
     // **** END OF STATE VARIABLES ****
 
@@ -434,8 +448,9 @@ const App = () => {
     // --- HANDLER FUNCTION: Image Generation ---
     // This function handles the image generation process.
     const handleGenerateImage = async (prompt) => {
-        setIsImageLoading(true);
+        setPartLoading("image", true);
         setImageUrl(null);
+        setImageNotice(null);
 
         try {
             const response = await fetchWithRetry(`${API_BASE_URL}/generate-image`, {
@@ -449,7 +464,8 @@ const App = () => {
             const base64 = data.predictions?.[0]?.bytesBase64Encoded;
             if (!base64) {
                 // Not fatal: image is optional and we can still show the guide data. But log it so we can investigate. 
-                console.warn("Image generation returned no image (possibly blocked).");
+                console.warn("Image generation returned no image (possibly blocked). Payload:", data);
+                setImageNotice("Image isn’t available right now. Showing the guide without it.");
                 return null;
             }
 
@@ -459,13 +475,27 @@ const App = () => {
         } catch (err) {
             // Not fatal: image is optional.
             if (err instanceof ApiError) {
-                console.warn('Image generation failed:', err.status, err.code, err.message);
+                console.warn(
+                    'Image generation failed:', 
+                    err.status, 
+                    err.code, 
+                    err.message, 
+                    err.details
+                );
+                
+                //  If rate-limited or upstream issue, show a user-friendly hint:
+                if (err.status === 429) {
+                    setImageNotice("Image generation is rate-limited right now. Try again in a minute.");
+                } else {
+                    setImageNotice("Image isn’t available right now. Showing the guide without it.");
+                }
             } else {
                 console.warn('Image generation failed:', err);
+                setImageNotice("Image isn’t available right now. Showing the guide without it.");
             }
             return null;
         } finally {
-            setIsImageLoading(false);
+            setPartLoading("image", false);  
         }
     };
 
@@ -493,6 +523,7 @@ const App = () => {
         setDateError(null);
         setGuideData(null);
         setGuideDataSecondary(null);
+        setImageNotice(null);
         setImageUrl(null);
         setRealFlightsPrimary([]);
         setRealFlightsSecondary([]);
@@ -519,21 +550,25 @@ const App = () => {
             let weatherSummaryB = null;
 
             // Primary destination weather
+            setPartLoading("weatherA", true);
             const weatherA = await fetchWeatherForDestination(destA);
             // Update UI weather state immediately
             setWeatherPrimary(weatherA);
             if (weatherA && weatherA.found && weatherA.summary?.headline) {
                 weatherSummaryA = weatherA.summary.headline;
-            }            
+            }
+            setPartLoading("weatherA", false);            
        
             // Comparison destination weather (if any)
             if (destB) {
+                setPartLoading("weatherB", true);
                 const weatherB = await fetchWeatherForDestination(destB);
                 // Update UI weather state immediately
                 setWeatherSecondary(weatherB); 
                 if (weatherB && weatherB.found && weatherB.summary?.headline) {
                     weatherSummaryB = weatherB.summary.headline;
-                }                              
+                }
+                setPartLoading("weatherB", false);                              
             }
 
             // --- REAL FLIGHTS FETCH ---
@@ -546,7 +581,8 @@ const App = () => {
             let destinationIata = null;
             let compareIata = null;
 
-            try {
+            setPartLoading("airports", true);
+            try {                
                 const { originIata: oIata, destinationIata: dIata, compareIata: cIata, raw } =
                     await resolveAirports({
                     origin,                 
@@ -567,6 +603,8 @@ const App = () => {
                 }
                 setError("Service temporarily unavailable. Please try again.");
                 return;
+            } finally {
+                setPartLoading("airports", false);
             }
 
             // Compute total passengers once
@@ -579,6 +617,7 @@ const App = () => {
             // --- 2) Call real-flights for primary destination (if we have IATA codes) ---
             let primaryOffers = [];
             if (originIata && destinationIata) {
+                setPartLoading("flightsA", true);
                 try {
                     const realJson = await fetchRealFlights({
                     originIata,
@@ -590,6 +629,8 @@ const App = () => {
                     primaryOffers = realJson.offers || [];
                 } catch (err) {
                     console.error("Real flights (primary) unavailable:", err);
+                } finally {
+                    setPartLoading("flightsA", false);
                 }
             }
 
@@ -598,6 +639,7 @@ const App = () => {
             const hasComparison = !!destB;
 
             if (hasComparison && originIata && compareIata) {
+                setPartLoading("flightsB", true);
                 try {
                     const realJson = await fetchRealFlights({
                     originIata,
@@ -609,6 +651,8 @@ const App = () => {
                     secondaryOffers = realJson.offers || [];
                 } catch (err) {
                     console.error("Real flights (secondary) unavailable:", err);
+                } finally {
+                    setPartLoading("flightsB", false);
                 }
             }
 
@@ -631,10 +675,11 @@ const App = () => {
             });
 
             // Always call for primary destination first
+            setPartLoading("guideA", true);
             const primaryResponse = await callGemini(promptA);
             console.log("Primary Gemini response:", primaryResponse);
             setGuideData(primaryResponse); 
-            
+            setPartLoading("guideA", false);
 
             // --- IMAGE GENERATION ---
             // Build a safe, diversity-aware, minors-aware prompt for Imagen
@@ -665,10 +710,11 @@ const App = () => {
             });
 
             // Call for secondary destination
+            setPartLoading("guideB", true);
             const secondaryResponse = await callGemini(promptB);
             console.log("Secondary Gemini response:", secondaryResponse);
             setGuideDataSecondary(secondaryResponse);
-
+            setPartLoading("guideB", false);
         } catch (err) {
             console.error("Frontend error in handleGetGuide:", err);
             setError(getUserMessage(err));
@@ -777,10 +823,7 @@ const App = () => {
 
     // **** END OF HANDLER FUNCTIONS *****
 
-    // Compute if comparison mode is active - Result has to be strictly a Boolean
-    const hasComparison =
-        !!(compareDestination && compareDestination.trim().length > 0);
-
+    
     // --- COMPUTE DERIVED VALUES ---
     // Compute the cheapest flight prices for display
     const cheapestA = getCheapestFlightPrice(guideData);
@@ -821,6 +864,20 @@ const App = () => {
             t.selectedCurrency === selectedCurrency
         );
 
+    // PARTS LOADING STATE HELPER: Helper function to set loading state for different parts of the UI
+    const setPartLoading = (key, value) =>
+        setLoadingParts((prev) => ({ ...prev, [key]: value }));
+
+    // LOADING LABEL HELPER: Helper function to get loading label based on which part is loading
+    const loadingLabel = 
+        loadingParts.guideA || loadingParts.guideB ? "Generating guide..." :
+        loadingParts.flightsA || loadingParts.flightsB ? "Fetching flight..." :
+        loadingParts.weatherA || loadingParts.weatherB ? "Fetching weather..." :
+        loadingParts.airports ? "Resolving airports..." :
+        loadingParts.image ? "Generating image..." :
+        "Exploring options..."
+    ;
+
 
     // --- RENDER THE APP COMPONENT ---
     return (
@@ -828,7 +885,7 @@ const App = () => {
             <div className="container mx-auto max-w-3xl">
                 
                 {/* Soft Imagen background overlay */}
-                {imageUrl && !isImageLoading && (
+                {imageUrl && !loadingParts.image && (
                     <div
                         className="
                             pointer-events-none
@@ -958,7 +1015,7 @@ const App = () => {
                             budgetLevel={budgetLevel}
                             setBudgetLevel={setBudgetLevel}
                             handleGetGuide={handleGetGuide}
-                            loading={loading}
+                            loading={loading} loadingLabel={loadingLabel}
                         />
                     </div>
 
@@ -994,7 +1051,7 @@ const App = () => {
                             <button
                                 type="button"
                                 onClick={handleResetSearch}
-                                disabled={loading || isImageLoading}
+                                disabled={loading || loadingParts.image}
                                 className="text-xs sm:text-sm font-semibold text-stone-500 hover:text-stone-700 
                                 underline disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -1013,15 +1070,26 @@ const App = () => {
                         </div>
                     )}
 
-                    {/* MAIN LOADING SPINNER */}
-                    {loading && (
-                        <div className="w-full flex justify-center mt-10">
+                    {/* MAIN LOADING SPINNER + LOADING PARTS*/}
+                    {loading  && (
+                        <div className="w-full flex flex-col items-center mt-10 gap-3">
                             <LoadingSpinner />
+                            <div className="flex flex-wrap justify-center gap-2 text-sm">
+                            {loadingParts.weatherA && <span className="px-3 py-1 rounded-full bg-black/10">Weather (A)…</span>}
+                            {loadingParts.weatherB && <span className="px-3 py-1 rounded-full bg-black/10">Weather (B)…</span>}
+                            {loadingParts.airports && <span className="px-3 py-1 rounded-full bg-black/10">Resolving airports…</span>}
+                            {loadingParts.flightsA && <span className="px-3 py-1 rounded-full bg-black/10">Flights (A)…</span>}
+                            {loadingParts.flightsB && <span className="px-3 py-1 rounded-full bg-black/10">Flights (B)…</span>}
+                            {loadingParts.guideA && <span className="px-3 py-1 rounded-full bg-black/10">Guide (A)…</span>}
+                            {loadingParts.guideB && <span className="px-3 py-1 rounded-full bg-black/10">Guide (B)…</span>}
+                            {loadingParts.image && <span className="px-3 py-1 rounded-full bg-black/10">Generating image…</span>}
+                            </div>
                         </div>
                     )}
+
                     
                     {/* SINGLE DESTINATION MODE */}
-                    {!loading && guideData && !guideDataSecondary && (
+                    {guideData && !guideDataSecondary && (
                     <section className="mt-8 space-y-6 fade-in-soft">
                         {/* Existing single-destination layout, using guideData exactly as before */}
                         <div className="bg-gradient-to-r from-sky-100 via-orange-50 to-emerald-50 rounded-2xl p-4 sm:p-5 shadow-md border border-amber-100">
@@ -1065,7 +1133,7 @@ const App = () => {
                     )}
 
                     {/* COMPARE MODE: TWO DESTINATIONS */}
-                    {!loading && guideData && guideDataSecondary && (
+                    {guideData && guideDataSecondary && (
                     <section className="mt-8 space-y-4 fade-in-soft">
                         <div className="text-center">
                             <p className="text-xs uppercase tracking-wide text-stone-500 mb-1">
@@ -1117,16 +1185,18 @@ const App = () => {
                         </div>
                     </section>
                     )}
-
-                    {/* IMAGE LOADING SPINNER */}
-                    {isImageLoading && (
-                        <div className="w-full flex justify-center mt-10">
-                            <LoadingSpinner />
+            
+                    {/* IMAGE NOTICE */}
+                    {imageNotice && (
+                        <div className="mt-3 flex justify-center">
+                            <div className="text-xs sm:text-sm px-3 py-1 rounded-full bg-stone-100 text-stone-600 border border-stone-200">
+                            {imageNotice}
+                            </div>
                         </div>
                     )}
 
                     {/* IMAGE DISPLAY */}
-                    {!isImageLoading && imageUrl && (
+                    {!loadingParts.image && imageUrl && (
                         <GeneratedImageCard
                             imageUrl={imageUrl}
                             destinationName={guideData?.destinationName}
