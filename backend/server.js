@@ -63,7 +63,7 @@ app.post("/generate-image", async (req, res) => {
     const accessToken = await client.getAccessToken();
 
     const response = await fetch(
-      `https://us-central1-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/publishers/google/models/imagen-3.0-generate-002:predict`,
+      `https://us-central1-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/publishers/google/models/gemini-2.5-flash-image:generateContent`,
       {
         method: "POST",
         headers: {
@@ -71,14 +71,56 @@ app.post("/generate-image", async (req, res) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          instances: [{ prompt }],
-          parameters: { sampleCount: 1 },
+          contents: [{
+            role: "user",
+            parts: [{ text: prompt }],
+          }],
+          generationConfig: {
+            temperature: 1,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: 8192,            
+          },
         }),
       }
     );
 
     const result = await response.json();
-    res.json(result);
+
+    // Log the full response to debug
+    console.log("Full API Response:", JSON.stringify(result, null, 2));
+    console.log("Response Status:", response.status);
+
+    if (!response.ok) {
+      console.error("Gemini Image API Error:", result);
+      return res.status(response.status).json({ 
+        error: result.error?.message || "Failed to generate image" 
+      });
+    }
+
+
+    // Transform Gemini response to match frontend expectations
+    // Check if we got actual image data from Gemini
+    const candidate = result.candidates?.[0];
+    const imagePart = candidate?.content?.parts?.find(p => p.inlineData);
+    
+    if (!imagePart?.inlineData?.data) {
+      console.warn("No image data in Gemini response:", result);
+      return res.json({ 
+        predictions: [],
+        geminiResponse: result // include for debugging
+      });
+    }
+
+    // Reformat to match old Imagen API structure that frontend expects
+    const transformedResponse = {
+      predictions: [{
+        bytesBase64Encoded: imagePart.inlineData.data,
+        mimeType: imagePart.inlineData.mimeType || "image/jpeg"
+      }]
+    };
+
+    res.json(transformedResponse);
   } catch (err) {
     console.error("Imagen backend error:", err);
     res.status(500).json({ error: err.toString() });
