@@ -8,7 +8,7 @@ async function fetchWeatherForecast(cityName) {
   // 1. Geocode the city name to get latitude and longitude
   const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
     cityName
-  )}&count=1&language=en&format=json`;
+  )}&count=10&language=en&format=json`;
 
   const geoRes = await fetch(geoUrl);
   if (!geoRes.ok) {
