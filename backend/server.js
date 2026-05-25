@@ -501,6 +501,10 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
 
 // Start the server
 app.listen(PORT, () => {
