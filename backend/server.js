@@ -5,7 +5,7 @@ import cors from "cors";
 import { GoogleAuth } from "google-auth-library";
 import fetch from "node-fetch";
 import resolveToIATA from "./utils/resolveToIATA.js";
-import getAmadeusToken from "./utils/getAmadeusToken.js";
+import getAmadeusToken, { isAmadeusConfigured } from "./utils/getAmadeusToken.js";
 import fetchWeatherForecast from "./utils/fetchWeatherForecast.js";
 import { apiError, asyncHandler} from "./utils/http.js";
 import isIsoDate from "./utils/isIsoDate.js";
@@ -153,26 +153,40 @@ app.post("/generate-guide", async (req, res) => {
 
     const data = await response.json();
 
+    if (!response.ok) {
+      const message = data?.error?.message || "Gemini API request failed.";
+      console.error("Gemini API upstream error:", { status: response.status, data });
+      return res.status(503).json({
+        error: `Gemini API unavailable: ${message}`,
+      });
+    }
+
     // Extract Gemini text
     let text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!text) {
-      return res.status(500).json({ error: "No text returned from Gemini." });
+      console.error("Gemini response missing text:", data);
+      return res.status(503).json({ error: "Gemini API returned no usable content." });
     }
 
-    // Clean Markdown code fences if present
-    text = text
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/i, "")
-      .replace(/```$/, "")
-      .trim();
+    // Gemini sometimes wraps JSON in markdown fences or adds extra text before/after.
+    const jsonText = (() => {
+      const trimmed = text.trim();
+      const fenced = trimmed.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+      const start = fenced.indexOf("{");
+      const end = fenced.lastIndexOf("}");
+      if (start !== -1 && end !== -1 && end > start) {
+        return fenced.slice(start, end + 1);
+      }
+      return fenced;
+    })();
 
     let parsed;
     try {
-      parsed = JSON.parse(text);
+      parsed = JSON.parse(jsonText);
     } catch (err) {
       console.error("Gemini returned invalid JSON:", text);
-      return res.status(500).json({ error: "Gemini returned invalid JSON format" });
+      return res.status(503).json({ error: "Gemini returned invalid JSON format." });
     }
 
     // Simulate delay for testing loading states
@@ -219,8 +233,19 @@ app.get("/weather", async (req, res) => {
   }
 });
 
+const buildLiveFlightsDisabledResponse = (message = "Live flight offers are unavailable because the configured flight provider requires a paid account.") => ({
+  offers: [],
+  liveFlightsEnabled: false,
+  message,
+});
+
 // --- REAL-FLIGHTS ROUTE ---
 app.get("/real-flights", asyncHandler(async (req, res) => {
+  if (!isAmadeusConfigured()) {
+    console.warn("Real flights disabled: Amadeus credentials are not configured.");
+    return res.status(200).json(buildLiveFlightsDisabledResponse());
+  }
+
   const {
     origin,
     destination,
@@ -322,14 +347,10 @@ app.get("/real-flights", asyncHandler(async (req, res) => {
         data: amadeusData
       });
 
-      // 5xx from provider => 503 (unavailable). Otherwise 502 (bad gateway)
-      const status = amadeusRes.status >= 500 ? 503 : 502;
-
-      return apiError(
-        res,
-        status,
-        status === 503 ? "UPSTREAM_UNAVAILABLE" : "UPSTREAM_BAD_RESPONSE",
-        "Failed to fetch flight offers from provider."
+      return res.status(200).json(
+        buildLiveFlightsDisabledResponse(
+          "Live flight offers are temporarily unavailable. The app will continue without them."
+        )
       );
     }
       
@@ -365,10 +386,15 @@ app.get("/real-flights", asyncHandler(async (req, res) => {
         .filter(Boolean)// remove nulls
         .slice(0, 6) || []; // limit to 6 offers max or empty array
 
-    return res.json({ offers });
+    return res.json({
+      offers,
+      liveFlightsEnabled: true,
+    });
   } catch (err) {
       console.error("Real flights route error:", err);
-      return apiError(res, 500, "INTERNAL_ERROR", "Internal error searching real flights." );
+      return res.status(200).json(buildLiveFlightsDisabledResponse(
+        "Live flight offers are temporarily unavailable. The app will continue without them."
+      ));
   }
 
 }));
@@ -376,6 +402,17 @@ app.get("/real-flights", asyncHandler(async (req, res) => {
 // --- Airport resolution API ---
 // GET /resolve-airports?origin=...&destination=...&compare=...
 app.get("/resolve-airports", async (req, res) => {
+  if (!isAmadeusConfigured()) {
+    console.warn("Airport resolution disabled: Amadeus credentials are not configured.");
+    return res.status(200).json({
+      origin: null,
+      destination: null,
+      compare: null,
+      liveFlightsEnabled: false,
+      message: "Live flight offers are unavailable because the configured flight provider requires a paid account.",
+    });
+  }
+
   const { origin, destination, compare } = req.query;
 
   const missing = [];
@@ -465,31 +502,36 @@ app.get("/resolve-airports", async (req, res) => {
     );
 
     if (worst !== resolveErrorType.NONE) {
-      const mapped = mapResolveError(worst);
-      return apiError(
-        res,
-        mapped.status,
-        mapped.code,
-        mapped.message, {
-          originErrorType: originOut.errorType,
-          destinationErrorType: destinationOut.errorType,
-        }
-      );
+      console.warn("Airport resolution degraded to non-fatal mode:", {
+        originErrorType: originOut.errorType,
+        destinationErrorType: destinationOut.errorType,
+        compareErrorType: compareOut.errorType,
+      });
+
+      return res.status(200).json({
+        origin: null,
+        destination: null,
+        compare: null,
+        liveFlightsEnabled: false,
+        message: "Live flight offers are temporarily unavailable. The app will continue without them.",
+      });
     }
 
     res.json({
       origin: originOut.result,
       destination: destinationOut.result,
       compare: compareOut.result,
+      liveFlightsEnabled: true,
     });
   } catch (err) {
     console.error("resolve-airports unexpected error:", err);
-    return apiError(
-      res,
-      500,
-      "INTERNAL_ERROR",
-      "Failed to resolve airports."
-    );
+    return res.status(200).json({
+      origin: null,
+      destination: null,
+      compare: null,
+      liveFlightsEnabled: false,
+      message: "Live flight offers are temporarily unavailable. The app will continue without them.",
+    });
   }
 });
 

@@ -110,6 +110,8 @@ const DestinationGuideColumn = ({
         return result;
     })();
 
+    const hasLiveFlights = Array.isArray(realFlights) && realFlights.length > 0;
+
     return (
         <div className="space-y-4 mt-4">
             {/* Destination header */}
@@ -199,7 +201,7 @@ const DestinationGuideColumn = ({
             )}
 
             {/* Live prices (beta) from real API */}
-            {Array.isArray(uniqueRealFlights) && uniqueRealFlights.length > 0 && (() => {
+            {hasLiveFlights && Array.isArray(uniqueRealFlights) && uniqueRealFlights.length > 0 && (() => {
                 // 🔒 Extra safety: if deduped list is empty, render nothing
                 if (!uniqueRealFlights || uniqueRealFlights.length === 0) {
                     return null;

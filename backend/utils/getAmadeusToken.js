@@ -1,3 +1,7 @@
+export function isAmadeusConfigured() {
+    return !!process.env.AMADEUS_API_KEY && !!process.env.AMADEUS_API_SECRET;
+}
+
 // Function to get Amadeus access token
 async function getAmadeusToken() {
 

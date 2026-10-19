@@ -339,6 +339,8 @@ const App = () => {
     // --- Real flight offers (Live API)
     const [realFlightsPrimary, setRealFlightsPrimary] = useState([]);
     const [realFlightsSecondary, setRealFlightsSecondary] = useState([]);
+    const [realFlightsPrimaryStatus, setRealFlightsPrimaryStatus] = useState({ enabled: true, message: "" });
+    const [realFlightsSecondaryStatus, setRealFlightsSecondaryStatus] = useState({ enabled: true, message: "" });
 
     // --- Components Loading state ---
     const [loadingParts, setLoadingParts] = useState({
@@ -527,6 +529,8 @@ const App = () => {
         setImageUrl(null);
         setRealFlightsPrimary([]);
         setRealFlightsSecondary([]);
+        setRealFlightsPrimaryStatus({ enabled: true, message: "" });
+        setRealFlightsSecondaryStatus({ enabled: true, message: "" });
 
         try {
             // Compute trip nights if both dates are provided
@@ -575,6 +579,8 @@ const App = () => {
             // Reset previous real flight results
             setRealFlightsPrimary([]);
             setRealFlightsSecondary([]);
+            setRealFlightsPrimaryStatus({ enabled: true, message: "" });
+            setRealFlightsSecondaryStatus({ enabled: true, message: "" });
 
             // --- 1) Resolve airports via backend ---
             let originIata = null;
@@ -627,8 +633,16 @@ const App = () => {
                     passengers: totalPassengers,
                     });
                     primaryOffers = realJson.offers || [];
+                    setRealFlightsPrimaryStatus({
+                        enabled: realJson.liveFlightsEnabled !== false,
+                        message: realJson.message || "",
+                    });
                 } catch (err) {
                     console.error("Real flights (primary) unavailable:", err);
+                    setRealFlightsPrimaryStatus({
+                        enabled: false,
+                        message: "Live flight data is currently unavailable. We’re continuing with AI-estimated flight suggestions.",
+                    });
                 } finally {
                     setPartLoading("flightsA", false);
                 }
@@ -649,8 +663,16 @@ const App = () => {
                     passengers: totalPassengers,
                     });
                     secondaryOffers = realJson.offers || [];
+                    setRealFlightsSecondaryStatus({
+                        enabled: realJson.liveFlightsEnabled !== false,
+                        message: realJson.message || "",
+                    });
                 } catch (err) {
                     console.error("Real flights (secondary) unavailable:", err);
+                    setRealFlightsSecondaryStatus({
+                        enabled: false,
+                        message: "Live flight data is currently unavailable. We’re continuing with AI-estimated flight suggestions.",
+                    });
                 } finally {
                     setPartLoading("flightsB", false);
                 }

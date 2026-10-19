@@ -47,12 +47,13 @@ When a **comparison destination** is filled:
   - Best-option card
 - A **“Best value” pill** highlights which destination looks more budget-friendly based on the cheapest flight.
 
-### 4. Real flight prices (beta)
+### 4. Real flight prices (optional / disabled when unavailable)
 
-- The backend integrates with **Amadeus test APIs** to fetch real fares.
+- The app can optionally integrate with **Amadeus** to fetch real fares, but this is now treated as optional because the legacy free-tier service has been discontinued.
+- If the provider is not configured or becomes unavailable, the backend gracefully returns an empty live-flight list and the app continues without crashing.
 - Destinations are resolved to airports via `/resolve-airports` using fuzzy matching and a small override list (e.g. *Lisbon → LIS, Dublin → DUB*).
 - Each destination column shows:
-  - A **top live price row** (grouped per airline).
+  - A **top live price row** (grouped per airline) when the provider is available.
   - A **“View all X live fares”** link that opens a modal listing unique offers.
   - Everything clearly labelled as *snapshot only*.
 
@@ -183,6 +184,7 @@ Create a `.env` file in `backend/`:
 GOOGLE_API_KEY=your_gemini_api_key
 GOOGLE_SERVICE_ACCOUNT_JSON='{"type":"service_account", ...}'  # or point to a file if you prefer
 
+# Optional: enable live-flight offers only if you have a paid Amadeus account
 AMADEUS_API_KEY=your_amadeus_key
 AMADEUS_API_SECRET=your_amadeus_secret
 
